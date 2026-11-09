@@ -1,0 +1,9 @@
+recursive-include csrc CMakeLists.txt *.cmake *.json *.h *.inc *.cpp
+recursive-include examples ascendc*.py ascendc*.json
+include docs/ascendc_aot.md
+global-exclude *.o *.so *.so.* *.a *.run *.log
+prune 3rdparty
+prune packages
+prune flashinfer/data/op_packages
+prune flashinfer/data/aclnn
+prune tests/fixtures/legacy_ascendc

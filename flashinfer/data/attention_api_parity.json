@@ -1,0 +1,1199 @@
+{
+  "schema_version": 2,
+  "upstream": {
+    "project": "flashinfer-ai/flashinfer",
+    "ref": "2895577720741ddfedff118202c89584996b8875",
+    "url": "https://github.com/flashinfer-ai/flashinfer"
+  },
+  "scope": "attention_core",
+  "scope_definition": "Core MHA/GQA attention framework APIs: holistic BatchAttention, single prefill/decode, paged batch prefill/decode, ragged batch prefill, and their documented lifecycle surface. CUDA/TRT-LLM-specific adapters, MLA, sparse attention, cascade, POD, and page mutation APIs are outside this phase.",
+  "inventory_status": "bootstrap",
+  "generated_at": "2026-10-21",
+  "attention_surfaces": [
+    {
+      "surface_id": "mixed_paged_attention",
+      "local": "flashinfer.attention.BatchAttention",
+      "attention_mode": "batch_mixed_paged",
+      "public_lifecycle": "plan_run",
+      "host_reference": true,
+      "provider_routing": "mode_bound",
+      "npu_execution": "integration_required"
+    },
+    {
+      "surface_id": "single_prefill",
+      "local": "flashinfer.prefill.single_prefill_with_kv_cache",
+      "attention_mode": "single_prefill",
+      "public_lifecycle": "one_shot",
+      "host_reference": true,
+      "provider_routing": "ephemeral",
+      "npu_execution": "functional"
+    },
+    {
+      "surface_id": "paged_batch_prefill",
+      "local": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper",
+      "attention_mode": "batch_prefill_paged",
+      "public_lifecycle": "plan_run",
+      "host_reference": true,
+      "provider_routing": "mode_bound",
+      "npu_execution": "functional"
+    },
+    {
+      "surface_id": "ragged_batch_prefill",
+      "local": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper",
+      "attention_mode": "batch_prefill_ragged",
+      "public_lifecycle": "plan_run",
+      "host_reference": true,
+      "provider_routing": "mode_bound",
+      "npu_execution": "functional"
+    },
+    {
+      "surface_id": "single_decode",
+      "local": "flashinfer.decode.single_decode_with_kv_cache",
+      "attention_mode": "single_decode",
+      "public_lifecycle": "one_shot",
+      "host_reference": true,
+      "provider_routing": "ephemeral",
+      "npu_execution": "functional"
+    },
+    {
+      "surface_id": "paged_batch_decode",
+      "local": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper",
+      "attention_mode": "batch_decode_paged",
+      "public_lifecycle": "plan_run",
+      "host_reference": true,
+      "provider_routing": "mode_bound",
+      "npu_execution": "functional"
+    }
+  ],
+  "entries": [
+    {
+      "upstream": "flashinfer.attention.BatchAttention",
+      "local": "flashinfer.attention.BatchAttention",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "reference",
+      "priority": "P0",
+      "notes": "Public plan/run facade executes mixed paged prefill/decode requests and always returns output plus LSE. device='cpu' is an explicit oracle opt-in; an NPU device owns a private mode-bound provider resolver.",
+      "api_kind": "upstream",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/attention/_core.py",
+        "line": 65,
+        "sha256": "f4f41a4b88fe07658f4eeaba1e52ca8c5f023aaa50ba0d3079bb3c7e5dfc88d8",
+        "declaration": "flashinfer.attention._core.BatchAttention"
+      },
+      "local_status": "reference",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.attention.BatchAttention.plan",
+      "local": "flashinfer.attention.BatchAttention.plan",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "reference",
+      "priority": "P0",
+      "api_kind": "upstream",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/attention/_core.py",
+        "line": 116,
+        "sha256": "f4f41a4b88fe07658f4eeaba1e52ca8c5f023aaa50ba0d3079bb3c7e5dfc88d8",
+        "declaration": "flashinfer.attention._core.BatchAttention.plan"
+      },
+      "local_status": "reference",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.attention.BatchAttention.run",
+      "local": "flashinfer.attention.BatchAttention.run",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "reference",
+      "priority": "P0",
+      "api_kind": "upstream",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/attention/_core.py",
+        "line": 266,
+        "sha256": "f4f41a4b88fe07658f4eeaba1e52ca8c5f023aaa50ba0d3079bb3c7e5dfc88d8",
+        "declaration": "flashinfer.attention._core.BatchAttention.run"
+      },
+      "local_status": "reference",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper",
+      "local": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "公开 plan 分页参数与 eager reset/forward 对齐；CANN 为按请求 FIA 组合。图模式已接入 plan 固定 buffer 与冻结校验；最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；split-K/特殊位置与量化执行等未支持能力明确报错。",
+      "notes": "indptr/indices/last_page_len 真正决定 KV 寻址；q_len_per_req 支持 1 与多 token，后者按因果执行且要求 use_tensor_cores=True。Host/provider 路由保留，workspace query 不改写已发布计划。 use_max_workspace=False 为 NPU 扩展的仅关键字参数；显式开启且 use_cuda_graph=True 时，plan 查询 FIA v1 最大字节容量并校验调用方固定 workspace，run 透传同一地址；默认关闭以保留内存代价，未实现的 T11 tiling 更新不在此保证内。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/decode.py",
+        "line": 1194,
+        "sha256": "7c69ae41dd981476d8424f193550b5da017820af7e060944bd11fb48de592b00",
+        "declaration": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "covered",
+      "cann_operators": [
+        "npu_fused_infer_attention_score"
+      ],
+      "coverage_evidence": "当前工作区实现与执行期 A5 真机验证（日志为过程产物，未入仓）；不代替原始覆盖表。",
+      "parameters": {
+        "use_max_workspace": {
+          "api_kind": "npu_extension",
+          "semantic_status": "intentionally_different",
+          "default": false,
+          "extension_namespace": "flashinfer.npu",
+          "upstream_counterpart": null,
+          "drop_in": false,
+          "reason": "T10 NPU-only 最大 workspace 选项；上游无对应参数。保留默认 False；显式查询入口为 flashinfer.npu.maximum_workspace_size。"
+        }
+      }
+    },
+    {
+      "upstream": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.begin_forward",
+      "local": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.begin_forward",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "reference",
+      "priority": "P3",
+      "api_kind": "upstream",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/decode.py",
+        "line": 1893,
+        "sha256": "7c69ae41dd981476d8424f193550b5da017820af7e060944bd11fb48de592b00",
+        "declaration": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.plan"
+      },
+      "local_status": "reference",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.end_forward",
+      "local": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.end_forward",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "reference",
+      "priority": "P3",
+      "api_kind": "compatibility_extension",
+      "reason": "保留旧版 end_forward 空操作供历史调用兼容；指定上游提交已无该方法，不计入其覆盖分母。",
+      "local_status": "reference",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.forward",
+      "local": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.forward",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "公开 plan 分页参数与 eager reset/forward 对齐；CANN 为按请求 FIA 组合。图模式已接入 plan 固定 buffer 与冻结校验；最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；split-K/特殊位置与量化执行等未支持能力明确报错。",
+      "notes": "indptr/indices/last_page_len 真正决定 KV 寻址；q_len_per_req 支持 1 与多 token，后者按因果执行且要求 use_tensor_cores=True。Host/provider 路由保留，workspace query 不改写已发布计划。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/decode.py",
+        "line": 2700,
+        "sha256": "7c69ae41dd981476d8424f193550b5da017820af7e060944bd11fb48de592b00",
+        "declaration": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.forward"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "covered",
+      "cann_operators": [
+        "npu_fused_infer_attention_score"
+      ],
+      "coverage_evidence": "当前工作区实现与执行期 A5 真机验证（日志为过程产物，未入仓）；不代替原始覆盖表。"
+    },
+    {
+      "upstream": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.is_cuda_graph_enabled",
+      "local": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.is_cuda_graph_enabled",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "functional",
+      "priority": "P1",
+      "reason": "",
+      "api_kind": "upstream",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/decode.py",
+        "line": 1571,
+        "sha256": "7c69ae41dd981476d8424f193550b5da017820af7e060944bd11fb48de592b00",
+        "declaration": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.is_cuda_graph_enabled"
+      },
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": [],
+      "notes": "保留上游兼容名称，内部使用 backend-neutral graph 标志；plan 冻结 batch size、解析后端、q_len_per_req、block table 宽度及 kernel 身份。固定 NPU buffer 原地 copy_；调用方负责 aclgraph 捕获/重放。"
+    },
+    {
+      "upstream": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.plan",
+      "local": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.plan",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "公开 plan 分页参数与 eager reset/forward 对齐；CANN 为按请求 FIA 组合。图模式已接入 plan 固定 buffer 与冻结校验；最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；split-K/特殊位置与量化执行等未支持能力明确报错。",
+      "notes": "indptr/indices/last_page_len 真正决定 KV 寻址；q_len_per_req 支持 1 与多 token，后者按因果执行且要求 use_tensor_cores=True。Host/provider 路由保留，workspace query 不改写已发布计划。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/decode.py",
+        "line": 1893,
+        "sha256": "7c69ae41dd981476d8424f193550b5da017820af7e060944bd11fb48de592b00",
+        "declaration": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.plan"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.reset_workspace_buffer",
+      "local": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.reset_workspace_buffer",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "公开 plan 分页参数与 eager reset/forward 对齐；CANN 为按请求 FIA 组合。图模式已接入 plan 固定 buffer 与冻结校验；最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；split-K/特殊位置与量化执行等未支持能力明确报错。",
+      "notes": "indptr/indices/last_page_len 真正决定 KV 寻址；q_len_per_req 支持 1 与多 token，后者按因果执行且要求 use_tensor_cores=True。Host/provider 路由保留，workspace query 不改写已发布计划。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/decode.py",
+        "line": 1574,
+        "sha256": "7c69ae41dd981476d8424f193550b5da017820af7e060944bd11fb48de592b00",
+        "declaration": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.reset_workspace_buffer"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.run",
+      "local": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.run",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "公开 plan 分页参数与 eager reset/forward 对齐；CANN 为按请求 FIA 组合。图模式已接入 plan 固定 buffer 与冻结校验；最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；split-K/特殊位置与量化执行等未支持能力明确报错。",
+      "notes": "indptr/indices/last_page_len 真正决定 KV 寻址；q_len_per_req 支持 1 与多 token，后者按因果执行且要求 use_tensor_cores=True。Host/provider 路由保留，workspace query 不改写已发布计划。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/decode.py",
+        "line": 2770,
+        "sha256": "7c69ae41dd981476d8424f193550b5da017820af7e060944bd11fb48de592b00",
+        "declaration": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.run"
+      },
+      "parameters": {
+        "enable_pdl": {
+          "semantic_status": "compatible",
+          "notes": "上游在非 CUDA/不支持 PDL 的设备上关闭 PDL；NPU 保留参数位并显式丢弃，None/False/True 等价于 False。"
+        }
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "covered",
+      "cann_operators": [
+        "npu_fused_infer_attention_score"
+      ],
+      "coverage_evidence": "当前工作区实现与执行期 A5 真机验证（日志为过程产物，未入仓）；不代替原始覆盖表。"
+    },
+    {
+      "upstream": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.use_tensor_cores",
+      "local": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.use_tensor_cores",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "reference",
+      "priority": "P2",
+      "notes": "保留上游同名属性作为兼容入口；NPU 图捕获冻结语义仍由 T9 实现。",
+      "reason": "",
+      "api_kind": "upstream",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/decode.py",
+        "line": 1480,
+        "sha256": "7c69ae41dd981476d8424f193550b5da017820af7e060944bd11fb48de592b00",
+        "declaration": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.use_tensor_cores"
+      },
+      "local_status": "reference",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.workspace_size",
+      "local": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.workspace_size",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "framework",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "公开 plan 分页参数与 eager reset/forward 对齐；CANN 为按请求 FIA 组合。图模式已接入 plan 固定 buffer 与冻结校验；最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；split-K/特殊位置与量化执行等未支持能力明确报错。",
+      "notes": "Host reference 和外部 provider 的只读 workspace 查询保留；原生 CANN 显式查询返回 FIA v1 最大字节数，不发布 plan、不写固定 buffer，非图 plan 不执行最大查询。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/decode.py",
+        "line": 1604,
+        "sha256": "7c69ae41dd981476d8424f193550b5da017820af7e060944bd11fb48de592b00",
+        "declaration": "flashinfer.decode.BatchDecodeWithPagedKVCacheWrapper.workspace_size"
+      },
+      "api_kind": "upstream",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.decode.single_decode_with_kv_cache",
+      "local": "flashinfer.decode.single_decode_with_kv_cache",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "无 batch 的 q/K/V 形状、参数顺序、log2 LSE 已对齐。CANN 当前限定 Ascend950、FP16/BF16、head_dim 64/128、NONE 位置编码与无 soft-cap；其他计算语义明确报错。",
+      "notes": "公开接口经真实 A5 数值对拍；Host ReferenceTensor 与已有量化 provider 路由保留。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/decode.py",
+        "line": 998,
+        "sha256": "7c69ae41dd981476d8424f193550b5da017820af7e060944bd11fb48de592b00",
+        "declaration": "flashinfer.decode.single_decode_with_kv_cache"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "covered",
+      "cann_operators": [
+        "npu_fused_infer_attention_score"
+      ],
+      "coverage_evidence": "当前工作区实现与执行期 A5 真机验证（日志为过程产物，未入仓）；不代替原始覆盖表。"
+    },
+    {
+      "upstream": "flashinfer.decode.single_decode_with_kv_cache_with_jit_module",
+      "local": "flashinfer.decode.single_decode_with_kv_cache_with_jit_module",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "framework",
+      "priority": "P0",
+      "backend": "injected_jit",
+      "reason": "",
+      "notes": "显式注入 run 模块与临时缓冲 ABI；不宣称已具备编译/装载能力。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/decode.py",
+        "line": 886,
+        "sha256": "7c69ae41dd981476d8424f193550b5da017820af7e060944bd11fb48de592b00",
+        "declaration": "flashinfer.decode.single_decode_with_kv_cache_with_jit_module"
+      },
+      "api_kind": "upstream",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper",
+      "local": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN 为按请求收集 KV 的 FIA 组合实现；use_cuda_graph 已接入 plan 固定 buffer 与冻结校验。原生最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；特殊位置编码/soft-cap/JIT 变体与 split-K 控制未支持时明确报错。",
+      "notes": "真实 A5 支持分页与末页、ragged 分段、GQA、NHD/HND、out/LSE；按固定提交支持 lse_base=log2/ln 与 lse_layout=NH/HN。外部 provider 与 Host reference 保留。 use_max_workspace=False 为 NPU 扩展的仅关键字参数；显式开启且 use_cuda_graph=True 时，plan 查询 FIA v1 最大字节容量并校验调用方固定 workspace，run 透传同一地址；默认关闭以保留内存代价，未实现的 T11 tiling 更新不在此保证内。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 2628,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "covered",
+      "cann_operators": [
+        "npu_fused_infer_attention_score"
+      ],
+      "coverage_evidence": "当前工作区实现与执行期 A5 真机验证（日志为过程产物，未入仓）；不代替原始覆盖表。",
+      "parameters": {
+        "use_max_workspace": {
+          "api_kind": "npu_extension",
+          "semantic_status": "intentionally_different",
+          "default": false,
+          "extension_namespace": "flashinfer.npu",
+          "upstream_counterpart": null,
+          "drop_in": false,
+          "reason": "T10 NPU-only 最大 workspace 选项；上游无对应参数。保留默认 False；显式查询入口为 flashinfer.npu.maximum_workspace_size。"
+        }
+      }
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.begin_forward",
+      "local": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.begin_forward",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "reference",
+      "priority": "P3",
+      "notes": "Deprecated alias of plan upstream.",
+      "api_kind": "upstream",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 3290,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.plan"
+      },
+      "local_status": "reference",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.end_forward",
+      "local": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.end_forward",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "reference",
+      "priority": "P3",
+      "notes": "Deprecated no-op upstream.",
+      "api_kind": "compatibility_extension",
+      "reason": "保留旧版 end_forward 空操作供历史调用兼容；指定上游提交已无该方法，不计入其覆盖分母。",
+      "local_status": "reference",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.forward",
+      "local": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.forward",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN 为按请求收集 KV 的 FIA 组合实现；use_cuda_graph 已接入 plan 固定 buffer 与冻结校验。原生最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；特殊位置编码/soft-cap/JIT 变体与 split-K 控制未支持时明确报错。",
+      "notes": "真实 A5 支持分页与末页、ragged 分段、GQA、NHD/HND、out/LSE；按固定提交支持 lse_base=log2/ln 与 lse_layout=NH/HN。外部 provider 与 Host reference 保留。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 4031,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.forward"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "covered",
+      "cann_operators": [
+        "npu_fused_infer_attention_score"
+      ],
+      "coverage_evidence": "当前工作区实现与执行期 A5 真机验证（日志为过程产物，未入仓）；不代替原始覆盖表。"
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.is_cuda_graph_enabled",
+      "local": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.is_cuda_graph_enabled",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "functional",
+      "priority": "P1",
+      "notes": "保留上游兼容名称，内部使用 backend-neutral graph 标志；plan 冻结 batch size、解析后端、q_len_per_req、block table 宽度及 kernel 身份。固定 NPU buffer 原地 copy_；调用方负责 aclgraph 捕获/重放。",
+      "reason": "",
+      "api_kind": "upstream",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 2977,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.is_cuda_graph_enabled"
+      },
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.plan",
+      "local": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.plan",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN 为按请求收集 KV 的 FIA 组合实现；use_cuda_graph 已接入 plan 固定 buffer 与冻结校验。原生最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；特殊位置编码/soft-cap/JIT 变体与 split-K 控制未支持时明确报错。",
+      "notes": "真实 A5 支持分页与末页、ragged 分段、GQA、NHD/HND、out/LSE；按固定提交支持 lse_base=log2/ln 与 lse_layout=NH/HN。外部 provider 与 Host reference 保留。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 3290,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.plan"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.plan_selection",
+      "local": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.plan_selection",
+      "upstream_kind": "experimental",
+      "api_kind": "npu_extension",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P1",
+      "reason": "NPU 扩展：查询已解析的执行选择及登记表版本；固定上游没有同名公开属性。",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.reset_workspace_buffer",
+      "local": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.reset_workspace_buffer",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN 为按请求收集 KV 的 FIA 组合实现；use_cuda_graph 已接入 plan 固定 buffer 与冻结校验。原生最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；特殊位置编码/soft-cap/JIT 变体与 split-K 控制未支持时明确报错。",
+      "notes": "真实 A5 支持分页与末页、ragged 分段、GQA、NHD/HND、out/LSE；按固定提交支持 lse_base=log2/ln 与 lse_layout=NH/HN。外部 provider 与 Host reference 保留。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 2980,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.reset_workspace_buffer"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.run",
+      "local": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.run",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN 为按请求收集 KV 的 FIA 组合实现；use_cuda_graph 已接入 plan 固定 buffer 与冻结校验。原生最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；特殊位置编码/soft-cap/JIT 变体与 split-K 控制未支持时明确报错。",
+      "notes": "真实 A5 支持分页与末页、ragged 分段、GQA、NHD/HND、out/LSE；按固定提交支持 lse_base=log2/ln 与 lse_layout=NH/HN。外部 provider 与 Host reference 保留。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 4108,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.run"
+      },
+      "parameters": {
+        "enable_pdl": {
+          "semantic_status": "compatible",
+          "notes": "上游在非 CUDA/不支持 PDL 的设备上关闭 PDL；NPU 保留参数位并显式丢弃，None/False/True 等价于 False。"
+        }
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "covered",
+      "cann_operators": [
+        "npu_fused_infer_attention_score"
+      ],
+      "coverage_evidence": "当前工作区实现与执行期 A5 真机验证（日志为过程产物，未入仓）；不代替原始覆盖表。"
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.workspace_size",
+      "local": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.workspace_size",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "framework",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN 为按请求收集 KV 的 FIA 组合实现；use_cuda_graph 已接入 plan 固定 buffer 与冻结校验。原生最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；特殊位置编码/soft-cap/JIT 变体与 split-K 控制未支持时明确报错。",
+      "notes": "Host reference 和外部 provider 的只读 workspace 查询保留；原生 CANN 显式查询返回 FIA v1 最大字节数，不发布 plan、不写固定 buffer，非图 plan 不执行最大查询。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 3010,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithPagedKVCacheWrapper.workspace_size"
+      },
+      "api_kind": "upstream",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper",
+      "local": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN 为按请求收集 KV 的 FIA 组合实现；use_cuda_graph 已接入 plan 固定 buffer 与冻结校验。原生最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；特殊位置编码/soft-cap/JIT 变体与 split-K 控制未支持时明确报错。",
+      "notes": "真实 A5 支持分页与末页、ragged 分段、GQA、NHD/HND、out/LSE；按固定提交支持 lse_base=log2/ln 与 lse_layout=NH/HN。外部 provider 与 Host reference 保留。 use_max_workspace=False 为 NPU 扩展的仅关键字参数；显式开启且 use_cuda_graph=True 时，plan 查询 FIA v1 最大字节容量并校验调用方固定 workspace，run 透传同一地址；默认关闭以保留内存代价，未实现的 T11 tiling 更新不在此保证内。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 4802,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "covered",
+      "cann_operators": [
+        "npu_fused_infer_attention_score"
+      ],
+      "coverage_evidence": "当前工作区实现与执行期 A5 真机验证（日志为过程产物，未入仓）；不代替原始覆盖表。",
+      "parameters": {
+        "use_max_workspace": {
+          "api_kind": "npu_extension",
+          "semantic_status": "intentionally_different",
+          "default": false,
+          "extension_namespace": "flashinfer.npu",
+          "upstream_counterpart": null,
+          "drop_in": false,
+          "reason": "T10 NPU-only 最大 workspace 选项；上游无对应参数。保留默认 False；显式查询入口为 flashinfer.npu.maximum_workspace_size。"
+        }
+      }
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.begin_forward",
+      "local": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.begin_forward",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "reference",
+      "priority": "P3",
+      "api_kind": "upstream",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 5141,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.plan"
+      },
+      "local_status": "reference",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.end_forward",
+      "local": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.end_forward",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "reference",
+      "priority": "P3",
+      "api_kind": "compatibility_extension",
+      "reason": "保留旧版 end_forward 空操作供历史调用兼容；指定上游提交已无该方法，不计入其覆盖分母。",
+      "local_status": "reference",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.forward",
+      "local": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.forward",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN 为按请求收集 KV 的 FIA 组合实现；use_cuda_graph 已接入 plan 固定 buffer 与冻结校验。原生最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；特殊位置编码/soft-cap/JIT 变体与 split-K 控制未支持时明确报错。",
+      "notes": "真实 A5 支持分页与末页、ragged 分段、GQA、NHD/HND、out/LSE；按固定提交支持 lse_base=log2/ln 与 lse_layout=NH/HN。外部 provider 与 Host reference 保留。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 5954,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.forward"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "covered",
+      "cann_operators": [
+        "npu_fused_infer_attention_score"
+      ],
+      "coverage_evidence": "当前工作区实现与执行期 A5 真机验证（日志为过程产物，未入仓）；不代替原始覆盖表。"
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.is_cuda_graph_enabled",
+      "local": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.is_cuda_graph_enabled",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "functional",
+      "priority": "P1",
+      "reason": "",
+      "api_kind": "upstream",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 5112,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.is_cuda_graph_enabled"
+      },
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": [],
+      "notes": "保留上游兼容名称，内部使用 backend-neutral graph 标志；plan 冻结 batch size、解析后端、q_len_per_req、block table 宽度及 kernel 身份。固定 NPU buffer 原地 copy_；调用方负责 aclgraph 捕获/重放。"
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.plan",
+      "local": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.plan",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN 为按请求收集 KV 的 FIA 组合实现；use_cuda_graph 已接入 plan 固定 buffer 与冻结校验。原生最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；特殊位置编码/soft-cap/JIT 变体与 split-K 控制未支持时明确报错。",
+      "notes": "真实 A5 支持分页与末页、ragged 分段、GQA、NHD/HND、out/LSE；按固定提交支持 lse_base=log2/ln 与 lse_layout=NH/HN。外部 provider 与 Host reference 保留。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 5141,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.plan"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.plan_selection",
+      "local": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.plan_selection",
+      "upstream_kind": "experimental",
+      "api_kind": "npu_extension",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P1",
+      "reason": "NPU 扩展：查询已解析的执行选择及登记表版本；固定上游没有同名公开属性。",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.reset_workspace_buffer",
+      "local": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.reset_workspace_buffer",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN 为按请求收集 KV 的 FIA 组合实现；use_cuda_graph 已接入 plan 固定 buffer 与冻结校验。原生最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；特殊位置编码/soft-cap/JIT 变体与 split-K 控制未支持时明确报错。",
+      "notes": "真实 A5 支持分页与末页、ragged 分段、GQA、NHD/HND、out/LSE；按固定提交支持 lse_base=log2/ln 与 lse_layout=NH/HN。外部 provider 与 Host reference 保留。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 5115,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.reset_workspace_buffer"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.run",
+      "local": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.run",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN 为按请求收集 KV 的 FIA 组合实现；use_cuda_graph 已接入 plan 固定 buffer 与冻结校验。原生最大 workspace 已由 use_max_workspace 显式接入；重放期动态长度/tiling 更新待 T11；特殊位置编码/soft-cap/JIT 变体与 split-K 控制未支持时明确报错。",
+      "notes": "真实 A5 支持分页与末页、ragged 分段、GQA、NHD/HND、out/LSE；按固定提交支持 lse_base=log2/ln 与 lse_layout=NH/HN。外部 provider 与 Host reference 保留。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 6016,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.BatchPrefillWithRaggedKVCacheWrapper.run"
+      },
+      "parameters": {
+        "enable_pdl": {
+          "semantic_status": "compatible",
+          "notes": "上游在非 CUDA/不支持 PDL 的设备上关闭 PDL；NPU 保留参数位并显式丢弃，None/False/True 等价于 False。"
+        }
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "covered",
+      "cann_operators": [
+        "npu_fused_infer_attention_score"
+      ],
+      "coverage_evidence": "当前工作区实现与执行期 A5 真机验证（日志为过程产物，未入仓）；不代替原始覆盖表。"
+    },
+    {
+      "upstream": "flashinfer.prefill.single_prefill_with_kv_cache",
+      "local": "flashinfer.prefill.single_prefill_with_kv_cache",
+      "upstream_kind": "stable",
+      "semantic_status": "intentionally_different",
+      "implementation_status": "functional",
+      "priority": "P0",
+      "backend": "cann",
+      "reason": "CANN eager 路径目前只支持 dense FP16/BF16、NONE 位置编码、head_dim 64/128；非零 soft-cap、FP16 QK reduction、NVFP4 明确报错。",
+      "notes": "A5 FIA BSND；因果、custom/packed mask、GQA、NHD/HND、scale 和 log2 LSE 已对拍。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 1325,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.single_prefill_with_kv_cache"
+      },
+      "api_kind": "upstream",
+      "local_status": "functional",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "covered",
+      "cann_operators": [
+        "npu_fused_infer_attention_score"
+      ],
+      "coverage_evidence": "当前工作区实现与执行期 A5 真机验证（日志为过程产物，未入仓）；不代替原始覆盖表。"
+    },
+    {
+      "upstream": "flashinfer.prefill.single_prefill_with_kv_cache_with_jit_module",
+      "local": "flashinfer.prefill.single_prefill_with_kv_cache_with_jit_module",
+      "upstream_kind": "stable",
+      "semantic_status": "compatible",
+      "implementation_status": "framework",
+      "priority": "P0",
+      "backend": "injected_jit",
+      "reason": "",
+      "notes": "显式注入 run 模块与临时缓冲 ABI；不宣称已具备编译/装载能力。",
+      "upstream_source": {
+        "commit": "2895577720741ddfedff118202c89584996b8875",
+        "path": "flashinfer/prefill.py",
+        "line": 1197,
+        "sha256": "b2824a09b370bdc0e6ce4bd3fdee2e3ffa6c86cf5996def83226407abda54902",
+        "declaration": "flashinfer.prefill.single_prefill_with_kv_cache_with_jit_module"
+      },
+      "api_kind": "upstream",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "unverified",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.npu.GraphCapability",
+      "local": "flashinfer.npu.GraphCapability",
+      "upstream_kind": "stable",
+      "implementation_status": "framework",
+      "semantic_status": "intentionally_different",
+      "priority": "P1",
+      "notes": "NPU-only；查询不导入设备包。有限验证范围与调用方接入示例见 docs/npu_graph_extensions.md。",
+      "extension_namespace": "flashinfer.npu",
+      "upstream_counterpart": null,
+      "drop_in": false,
+      "api_kind": "npu_extension",
+      "reason": "T10/T11 NPU-only 扩展：descriptor 声明已验证的入图范围、参数与更新策略；调用方拥有 capture/replay 和固定 buffer。固定上游无对应接口，不属于 upstream drop-in API。",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.npu.GraphReplaySpec",
+      "local": "flashinfer.npu.GraphReplaySpec",
+      "upstream_kind": "stable",
+      "implementation_status": "framework",
+      "semantic_status": "intentionally_different",
+      "priority": "P1",
+      "notes": "NPU-only；查询不导入设备包。有限验证范围与调用方接入示例见 docs/npu_graph_extensions.md。",
+      "extension_namespace": "flashinfer.npu",
+      "upstream_counterpart": null,
+      "drop_in": false,
+      "api_kind": "npu_extension",
+      "reason": "T10/T11 NPU-only 扩展：descriptor 声明已验证的入图范围、参数与更新策略；调用方拥有 capture/replay 和固定 buffer。固定上游无对应接口，不属于 upstream drop-in API。",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.npu.ReplayParameterUpdates",
+      "local": "flashinfer.npu.ReplayParameterUpdates",
+      "upstream_kind": "stable",
+      "implementation_status": "framework",
+      "semantic_status": "intentionally_different",
+      "priority": "P1",
+      "notes": "NPU-only；查询不导入设备包。有限验证范围与调用方接入示例见 docs/npu_graph_extensions.md。",
+      "extension_namespace": "flashinfer.npu",
+      "upstream_counterpart": null,
+      "drop_in": false,
+      "api_kind": "npu_extension",
+      "reason": "T10/T11 NPU-only 扩展：descriptor 声明已验证的入图范围、参数与更新策略；调用方拥有 capture/replay 和固定 buffer。固定上游无对应接口，不属于 upstream drop-in API。",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.npu.ReplayParameterUpdates.before_replay",
+      "local": "flashinfer.npu.ReplayParameterUpdates.before_replay",
+      "upstream_kind": "stable",
+      "implementation_status": "framework",
+      "semantic_status": "intentionally_different",
+      "priority": "P1",
+      "notes": "NPU-only；查询不导入设备包。有限验证范围与调用方接入示例见 docs/npu_graph_extensions.md。",
+      "extension_namespace": "flashinfer.npu",
+      "upstream_counterpart": null,
+      "drop_in": false,
+      "api_kind": "npu_extension",
+      "reason": "T10/T11 NPU-only 扩展：descriptor 声明已验证的入图范围、参数与更新策略；调用方拥有 capture/replay 和固定 buffer。固定上游无对应接口，不属于 upstream drop-in API。",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.npu.ReplayParameterUpdates.recording",
+      "local": "flashinfer.npu.ReplayParameterUpdates.recording",
+      "upstream_kind": "stable",
+      "implementation_status": "framework",
+      "semantic_status": "intentionally_different",
+      "priority": "P1",
+      "notes": "NPU-only；查询不导入设备包。有限验证范围与调用方接入示例见 docs/npu_graph_extensions.md。",
+      "extension_namespace": "flashinfer.npu",
+      "upstream_counterpart": null,
+      "drop_in": false,
+      "api_kind": "npu_extension",
+      "reason": "T10/T11 NPU-only 扩展：descriptor 声明已验证的入图范围、参数与更新策略；调用方拥有 capture/replay 和固定 buffer。固定上游无对应接口，不属于 upstream drop-in API。",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.npu.ReplayParameterUpdates.tasks",
+      "local": "flashinfer.npu.ReplayParameterUpdates.tasks",
+      "upstream_kind": "stable",
+      "implementation_status": "framework",
+      "semantic_status": "intentionally_different",
+      "priority": "P1",
+      "notes": "NPU-only；查询不导入设备包。有限验证范围与调用方接入示例见 docs/npu_graph_extensions.md。",
+      "extension_namespace": "flashinfer.npu",
+      "upstream_counterpart": null,
+      "drop_in": false,
+      "api_kind": "npu_extension",
+      "reason": "T10/T11 NPU-only 扩展：descriptor 声明已验证的入图范围、参数与更新策略；调用方拥有 capture/replay 和固定 buffer。固定上游无对应接口，不属于 upstream drop-in API。",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.npu.graph_requirements",
+      "local": "flashinfer.npu.graph_requirements",
+      "upstream_kind": "stable",
+      "implementation_status": "framework",
+      "semantic_status": "intentionally_different",
+      "priority": "P1",
+      "notes": "NPU-only；查询不导入设备包。有限验证范围与调用方接入示例见 docs/npu_graph_extensions.md。",
+      "extension_namespace": "flashinfer.npu",
+      "upstream_counterpart": null,
+      "drop_in": false,
+      "api_kind": "npu_extension",
+      "reason": "T10/T11 NPU-only 扩展：descriptor 声明已验证的入图范围、参数与更新策略；调用方拥有 capture/replay 和固定 buffer。固定上游无对应接口，不属于 upstream drop-in API。",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    },
+    {
+      "upstream": "flashinfer.npu.maximum_workspace_size",
+      "local": "flashinfer.npu.maximum_workspace_size",
+      "upstream_kind": "stable",
+      "implementation_status": "framework",
+      "semantic_status": "intentionally_different",
+      "priority": "P1",
+      "notes": "NPU-only；查询不导入设备包。有限验证范围与调用方接入示例见 docs/npu_graph_extensions.md。",
+      "extension_namespace": "flashinfer.npu",
+      "upstream_counterpart": null,
+      "drop_in": false,
+      "api_kind": "npu_extension",
+      "reason": "T10/T11 NPU-only 扩展：descriptor 声明已验证的入图范围、参数与更新策略；调用方拥有 capture/replay 和固定 buffer。固定上游无对应接口，不属于 upstream drop-in API。",
+      "local_status": "framework",
+      "consumers": {
+        "vllm": "unverified",
+        "sglang": "unverified"
+      },
+      "cann_coverage": "not_applicable",
+      "cann_operators": []
+    }
+  ],
+  "coverage_matrix": {
+    "status": "missing_source",
+    "expected_rows": 147,
+    "notes": "147 条原始覆盖表、vllm-ascend 检出及下游使用证据尚未提供；当前由指定提交的公开声明补充库存，未核实字段保留 unverified。"
+  }
+}
