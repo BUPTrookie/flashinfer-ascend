@@ -400,8 +400,11 @@ def test_wheel_and_sdist_include_only_release_data_and_installed_lookup_works(lo
     source, artifacts, installed = (tmp_path / p for p in ("source", "artifacts", "installed"))
     shutil.copytree(repository / "flashinfer", source / "flashinfer",
                     ignore=shutil.ignore_patterns("__pycache__", "*.sqlite3"))
-    for name in ("pyproject.toml", "README.md", "LICENSE"):
+    for name in ("pyproject.toml", "README.md", "LICENSE", "setup.py", "MANIFEST.in", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(repository / name, source / name)
+    shutil.copytree(repository / "LICENSES", source / "LICENSES")
+    shutil.copytree(repository / "csrc", source / "csrc")
+    shutil.copytree(repository / "tools/metadata", source / "tools/metadata")
     data = source / "flashinfer/tuning/data"
     shutil.rmtree(data)
     export_release_data([record], data, registry_factory=configuration_registry)
@@ -409,6 +412,9 @@ def test_wheel_and_sdist_include_only_release_data_and_installed_lookup_works(lo
     # distribution. Only the explicit SoC release pattern is package data.
     (source / "flashinfer/tuning/local.sqlite3").write_bytes(b"must not ship")
     artifacts.mkdir()
+    monkeypatch.setenv("FLASHINFER_AOT_ALL", "0")
+    monkeypatch.delenv("FLASHINFER_AOT_PREBUILT", raising=False)
+    monkeypatch.delenv("FLASHINFER_AOT_CONFIG", raising=False)
     built = subprocess.run([sys.executable, "-c",
                             "from setuptools.build_meta import build_sdist, build_wheel; "
                             "build_sdist(%r); build_wheel(%r)" % (str(artifacts), str(artifacts))],
@@ -416,11 +422,22 @@ def test_wheel_and_sdist_include_only_release_data_and_installed_lookup_works(lo
     assert built.returncode == 0, built.stdout + built.stderr
     expected = "flashinfer/tuning/data/Ascend950/measurements.sqlite3"
     with zipfile.ZipFile(next(artifacts.glob("*.whl"))) as wheel:
+        cann_license = [name for name in wheel.namelist()
+                        if ".dist-info/" in name and name.endswith("CANN-Open-Software-License-2.0.txt")]
+        assert len(cann_license) == 1
+        assert wheel.read(cann_license[0]) == (repository / "LICENSES/CANN-Open-Software-License-2.0.txt").read_bytes()
+        assert any(".dist-info/" in name and name.endswith("THIRD_PARTY_NOTICES.md") for name in wheel.namelist())
+        assert not any(name.endswith(("/provenance.json", "/CANN_LICENSE.h")) for name in wheel.namelist())
+        assert not any("/csrc/kernels/" in name and name.endswith("/LICENSE") for name in wheel.namelist())
         assert expected in wheel.namelist()
         assert "flashinfer/tuning/data/manifest.json" in wheel.namelist()
         assert not any(name.endswith("local.sqlite3") for name in wheel.namelist())
         wheel.extractall(installed)
     with tarfile.open(next(artifacts.glob("*.tar.gz"))) as sdist:
+        assert any(name.endswith("/LICENSES/CANN-Open-Software-License-2.0.txt") for name in sdist.getnames())
+        assert any(name.endswith("/THIRD_PARTY_NOTICES.md") for name in sdist.getnames())
+        assert not any(name.endswith(("/provenance.json", "/CANN_LICENSE.h")) for name in sdist.getnames())
+        assert not any("/csrc/kernels/" in name and name.endswith("/LICENSE") for name in sdist.getnames())
         assert any(name.endswith(expected) for name in sdist.getnames())
         assert not any(name.endswith("local.sqlite3") for name in sdist.getnames())
     script = '''

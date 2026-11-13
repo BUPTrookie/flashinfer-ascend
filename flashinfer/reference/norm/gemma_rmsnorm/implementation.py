@@ -1,0 +1,19 @@
+"""reference implementation of norm.gemma_rmsnorm."""
+
+from flashinfer.operators.author_api import (
+    ReferenceImplementation,
+    Support,
+    DimRange,
+    PythonKernel,
+)
+from flashinfer.operators.norm.gemma_rmsnorm.operator import OPERATOR
+from .runner import run
+
+IMPLEMENTATION = ReferenceImplementation(
+    operator=OPERATOR,
+    kernel_id="reference/norm/gemma_rmsnorm_v1",
+    support=Support(),
+    runner=run,
+)
+
+descriptor = IMPLEMENTATION.bind

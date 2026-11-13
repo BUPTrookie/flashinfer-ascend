@@ -211,6 +211,7 @@ def _dispatch_uncached(
         reasons = (
             descriptor.capability.unsupported_reasons(signature, hardware)
             + descriptor.unsupported_target_reasons(hardware.soc_model)
+            + descriptor.admission_reasons(signature)
         )
         reports = (
             CandidateReport(kernel_id, descriptor.backend, not reasons, reasons),
@@ -271,7 +272,7 @@ def _dispatch_uncached(
             reasons.append(
                 "reference 需显式 opt-in（backend='reference' 或 allow_reference=True）"
             )
-        # 2/3. capability 过滤：语义（dtype/layout/特化参数/张量规模区间）
+        # 2/3. capability 过滤：完整 dtype、语义能力组合、layout/特化/规模
         #      + 二进制（SoC/AI Core 数），M0 统一由 CapabilitySpec 承担
         # manifest select() 另保留 KernelConstraints：整组 dtype/layout、
         # 设备 features/supported_dtypes、QuantSpec 与确定性要求。这里的
@@ -280,6 +281,7 @@ def _dispatch_uncached(
             descriptor.capability.unsupported_reasons(signature, hardware)
         )
         reasons.extend(descriptor.unsupported_target_reasons(hardware.soc_model))
+        reasons.extend(descriptor.admission_reasons(signature))
         # JIT 全局禁用（§13）：仅 AOT / CANN 可用
         if (
             descriptor.compile_mode == CompileMode.JIT

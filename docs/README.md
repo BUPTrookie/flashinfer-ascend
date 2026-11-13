@@ -53,10 +53,23 @@
 
 ## 动态事实来源
 
-- Attention API 对标状态：`flashinfer/data/attention_api_parity.json`；
-- backend capability：`flashinfer/data/attention_capabilities.json`；
+- Attention API 对标状态：`tools/metadata/attention_api_parity.json`；
+- 外部 provider 能力资料：`tools/metadata/attention_capabilities.json`；实现能力以各后端声明为准；
 - kernel/artifact 声明：对应的版本化 manifest；
 - conformance case 与覆盖统计：版本化 corpus 和 coverage policy；
 - 测试是否通过：CI 或当前测试命令的输出。
 
 设计文档解释这些事实源的含义和约束，但不手工维护它们的动态统计值。
+
+## Matmul 与路由讲解
+
+- [算子接入指南与交付清单](adding-a-custom-operator.md)：共同接入契约、三后端注册与构建交付、按阶段验收。
+- [Matmul 接口、登记和源码调用链](matmul-backends.md)：三后端共同契约、选型、编译和执行边界。
+- [Dispatcher 数据结构参考](generated/dispatcher-data-models.md)：从源码生成的类型、字段和协作关系。
+- [四页架构讲解](presentations/dispatcher.pptx) 与 [PDF 预览](presentations/dispatcher.pdf)：仅维护当前版本。
+
+文档生成入口为 `tools/build_dispatcher_slides.py` 和 `tools/inspect_dispatch_data_model.py`。
+文字提取、路由演示与产物检查结果写入 `build/dispatcher-docs/`；历史布局、测试流水和重复预览不进入文档树。
+
+过期的 `TASKS.md`、`tasks/` 和交接状态已从当前文档树清理，历史版本通过 Git 查看。
+带基线提交的 `reports/` 保留为时点证据，不作为当前接口与支持范围的事实源。

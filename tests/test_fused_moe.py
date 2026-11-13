@@ -637,7 +637,7 @@ class TestCannFp8Cascade:
         s1 = torch.rand(num_e) * 0.02 + 0.01
         s1g = torch.rand(num_e) * 0.5 + 0.75
         s2 = torch.rand(num_e) * 0.02 + 0.01
-        monkeypatch.setattr(self.cann_moe, "_fp8_gmm", self._naive_fp8_gmm)
+        monkeypatch.setitem(self.cann_moe._fp8_per_tensor_scale_moe_cascade.__globals__, '_fp8_gmm', self._naive_fp8_gmm)
         args = (logits, bias, x8, w1_8, s1, s1g, w2_8, s2)
         kw = (num_e, top_k, 1, 1, inter, 0, num_e, 1.0, False, 8, 0, False)
         out_cann = torch.empty(seq, hidden, dtype=torch.bfloat16)
@@ -663,7 +663,7 @@ class TestCannFp8Cascade:
         xs = torch.rand(hidden // 128, seq) * 0.02 + 0.01  # (H//128, S)
         g1s = torch.rand(num_e, 2 * inter // 128, hidden // 128) * 0.02 + 0.01
         g2s = torch.rand(num_e, hidden // 128, inter // 128) * 0.02 + 0.01
-        monkeypatch.setattr(self.cann_moe, "_fp8_gmm", self._naive_fp8_gmm)
+        monkeypatch.setitem(self.cann_moe._fp8_block_gmm.__globals__, '_fp8_gmm', self._naive_fp8_gmm)
         args = (logits, bias, x8, xs, w1_8, g1s, w2_8, g2s)
         kw = (num_e, top_k, n_group, topk_group, inter, 0, num_e, 2.5, 8,
               int(finpu.RoutingMethodType.DeepSeekV3))
@@ -684,7 +684,7 @@ class TestCannFp8Cascade:
         w1_8 = self._fp8(torch.randn(num_e, 2 * inter, hidden) * 0.05)
         w2_8 = self._fp8(torch.randn(num_e, hidden, inter) * 0.05)
         monkeypatch.setattr(_MOE_MOD, "current_hardware", lambda: NPU_HW_950)
-        monkeypatch.setattr(self.cann_moe, "_fp8_gmm", self._naive_fp8_gmm)
+        monkeypatch.setitem(self.cann_moe._fp8_per_tensor_scale_moe_cascade.__globals__, '_fp8_gmm', self._naive_fp8_gmm)
         out = torch.empty(seq, hidden, dtype=torch.bfloat16)
         ret = finpu.fp8_per_tensor_scale_moe(
             torch.randn(seq, num_e), torch.zeros(num_e), x8, w1_8,
@@ -722,7 +722,7 @@ class TestCutlassMoeCannNpu:
     def test_cutlass_cann_vs_fp64(self):
         torch = self.torch
         torch.manual_seed(0)
-        dev = "npu:0"
+        dev = torch.device("npu", torch.npu.current_device())
         seq, hidden, inter, num_e, top_k = 16, 64, 32, 4, 2
         x = torch.randn(seq, hidden, device=dev, dtype=torch.bfloat16)
         logits = torch.randn(seq, num_e)
@@ -752,7 +752,7 @@ class TestCutlassMoeCannNpu:
         """存在零 token 专家（空组）时结果仍正确。"""
         torch = self.torch
         torch.manual_seed(1)
-        dev = "npu:0"
+        dev = torch.device("npu", torch.npu.current_device())
         seq, hidden, inter, num_e = 8, 32, 16, 4
         x = torch.randn(seq, hidden, device=dev, dtype=torch.bfloat16)
         idx = torch.zeros(seq, 1, dtype=torch.long, device=dev)  # 全部路由到专家 0
@@ -772,7 +772,7 @@ class TestCutlassMoeCannNpu:
         """同一输入下 cann 与 reference 结果一致（bf16 容差）。"""
         torch = self.torch
         torch.manual_seed(2)
-        dev = "npu:0"
+        dev = torch.device("npu", torch.npu.current_device())
         seq, hidden, inter, num_e, top_k = 8, 32, 16, 3, 2
         x = torch.randn(seq, hidden)
         logits = torch.randn(seq, num_e)

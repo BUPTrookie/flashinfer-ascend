@@ -1,5 +1,7 @@
 """T19A: real registry partition, source identities and both decision levels."""
 
+from tests.production_inventory import DEFAULT_DESCRIPTOR_COUNT, PRODUCTION_KERNEL_IDS, STACK_COUNTS
+
 from collections import Counter
 from dataclasses import replace
 import importlib
@@ -53,20 +55,16 @@ def test_builtin_partition_is_complete_disjoint_and_has_no_within_stack_data():
     registry = get_global_registry()
     before = [(d.kernel_id, d.fingerprint) for d in registry.descriptors()]
     stacks = registry.stacks()
-    assert {s.stack_id: len(s.descriptors) for s in stacks} == {
-        "ascendc": 2, "cann": 40, "reference": 38, "triton": 1,
-    }
+    assert {s.stack_id: len(s.descriptors) for s in stacks} == STACK_COUNTS
     assert all(isinstance(s, ImplementationStack) for s in stacks)
     flat = [d for s in stacks for d in s.descriptors]
-    assert len(flat) == len({d.kernel_id for d in flat}) == 81
+    assert len(flat) == len({d.kernel_id for d in flat}) == DEFAULT_DESCRIPTOR_COUNT
     from flashinfer.ascendc import MATMUL_BIAS_SILU_KERNEL_ID, FLASH_ATTENTION_KERNEL_ID
     from flashinfer.runtime.registry import _builtin_descriptors
 
     legacy = _builtin_descriptors()
-    assert len(legacy) == 79
-    assert {d.kernel_id for d in flat} - {d.kernel_id for d in legacy} == {
-        MATMUL_BIAS_SILU_KERNEL_ID, FLASH_ATTENTION_KERNEL_ID,
-    }
+    assert len(legacy) == 81
+    assert {d.kernel_id for d in flat} - {d.kernel_id for d in legacy} == PRODUCTION_KERNEL_IDS
     assert {id(d) for d in flat} == {id(d) for d in registry.descriptors()}
     assert all(max(Counter(d.op for d in s.descriptors).values()) == 1 for s in stacks)
     assert before == [(d.kernel_id, d.fingerprint) for d in registry.descriptors()]
@@ -326,7 +324,7 @@ def test_real_example_configs_select_by_actual_tile_capacity(hidden, expected):
     from examples.two_level_gemma import OP, configuration_registry
 
     production_before = tuple((d.kernel_id, d.fingerprint) for d in get_global_registry().descriptors())
-    assert len(production_before) == 81
+    assert len(production_before) == DEFAULT_DESCRIPTOR_COUNT
     registry = configuration_registry(HW.soc_model)
     signature = replace(SIG, op=OP, shapes=((4, hidden),))
     decision = dispatch(signature, HW, registry=registry)

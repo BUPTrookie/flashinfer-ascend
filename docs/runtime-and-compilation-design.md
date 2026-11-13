@@ -19,7 +19,7 @@ FlashInfer Ascend 面向昇腾 NPU 提供推理算子接口、实现选择机制
 
 ### 1.2 实现范围
 
-多实现选择是运行时提供的接入能力。当前内置生产登记中，同一逻辑 op 尚未接入多个 NPU 实现；部分 op 另有 reference 实现，reference 默认不参与普通自动选择。当前 CATLASS FA 仅有 Ascend C 候选，未与 CANN single-prefill 或 Triton FA 建立统一候选集合。
+多实现选择是运行时提供的接入能力。当前内置生产登记中，同一逻辑 op 尚未接入多个 NPU 实现；部分 op 另有 reference 实现，reference 默认不参与普通自动选择。默认生产 registry 中 CATLASS FA 仅有 Ascend C 候选；第 9.4 节的隔离 registry 已为同一入口加入 Triton FA，CANN single-prefill 尚未接入该候选集合。
 
 生产 Ascend C FA 与 MatmulBiasSiLU 已采用 AOT 优先、缺失时按策略 JIT 的产物解析机制。两者通过统一 Torch 注册与 C++ TorchNPU/ACLNN 桥执行。CANN 内置算子和现有 Triton 算子保留各自的执行适配。
 
@@ -75,7 +75,7 @@ JIT 运行：build_and_load → _build_record → 校验与加载
 | L3 实现选择 | 查询候选实现，执行支持域和策略过滤，查询调优记录，形成 DispatchDecision | `flashinfer/runtime/`、`flashinfer/tuning/` |
 | L3′ 构建与产物管理 | 声明编译单元、发现 AOT、查询构建缓存、受控编译、验证和加载产物 | `flashinfer/jit/`、`flashinfer/aot/` |
 | L2 后端适配 | 将公共调用转换为后端参数与执行协议，管理 native 调用、workspace、stream 和资源生命周期 | `flashinfer/cann/`、`flashinfer/jit/tensor_adapter.py`、`flashinfer/aclnn/`、`csrc/aclnn_torch_adapter/`、Triton launcher |
-| L1 算子实现 | 实现 host infer/tiling、设备计算及相应 launcher | `csrc/kernels/ascendc/<op>/op_host/`、`csrc/kernels/ascendc/<op>/op_kernel/`、`flashinfer/triton/` |
+| L1 算子实现 | 实现 host infer/tiling、设备计算及相应 launcher | `csrc/kernels/<op>/op_host/`、`csrc/kernels/<op>/op_kernel/`、`flashinfer/triton/` |
 | L0 硬件执行 | 执行设备计算，提供上层选型与 tiling 使用的设备特征 | 昇腾 NPU；探测模块为 `flashinfer/runtime/hardware.py` |
 
 L3′ 为所选实现提供产物准备能力，不是每次调用的必经编译步骤。CANN 内置实现使用已安装的运行栈；当前生产 Ascend C 实现通过该层解析 AOT/JIT；Triton 可以使用其自身的 JIT launcher。
@@ -128,7 +128,7 @@ flowchart TB
 
 | 对象 | 主要字段 | 消费方 |
 | --- | --- | --- |
-| `InputSignature` | op、按 Tensor 参数顺序排列的 dtypes/shapes/layouts、physical_layouts、specializations | capability 过滤、调优查询、决策缓存 |
+| `InputSignature` | op、按 Tensor 参数顺序排列的 dtypes/shapes/layouts、physical_layouts、specializations、可选 inference | capability 过滤、调优查询、决策缓存 |
 | `HardwareSignature` | soc_model、aicore_count、ub_size_bytes | 支持域和目标检查、调优记录匹配 |
 
 InputSignature 是不可变的调用元数据快照，不包含 Tensor 内容或内存地址。物理格式未知时保留未知状态，不由逻辑布局或 stride 推定为 ND/NZ。语义选项由公共接口标准化为 specializations。
@@ -139,7 +139,7 @@ InputSignature 是不可变的调用元数据快照，不包含 Tensor 内容或
 
 | 对象 | 职责与主要约束 |
 | --- | --- |
-| `CapabilitySpec` | 声明 dtype、shape、布局、特化和硬件支持条件；提供不支持原因，不能用优先级或测量记录覆盖不合法条件 |
+| `CapabilitySpec` | 声明 dtype、shape、布局、特化、硬件及语义能力组合；提供不支持原因，不能用优先级或测量记录覆盖不合法条件 |
 | `KernelDescriptor` | 聚合 op、kernel_id、backend、capability、compile_mode、priority、runner，以及适用的源码、产物、目标、ABI、workspace 和图能力声明 |
 | `KernelRegistry` | 维护实现目录；按 op 查询；内置初始化后冻结；外部或 custom 接入按各自规则执行，并更新 revision |
 | `ImplementationStack` | 同一 registry 快照的来源分组视图；不另建候选事实源或来源性能分数 |
@@ -147,7 +147,234 @@ InputSignature 是不可变的调用元数据快照，不包含 Tensor 内容或
 
 descriptor 的静态信息与进程内 runner 绑定分开，延迟绑定不改变其序列化身份。registry revision 参与决策缓存，避免登记变化后继续复用旧候选集合。
 
-CapabilitySpec 提供通用选型条件，BuildRecipe 提供完整 Tensor 参数与构建契约。二者存在重叠约束时必须保持一致，不能分别扩张支持范围。定义见 [schema.py:689](../flashinfer/runtime/schema.py#L689)、[schema.py:914](../flashinfer/runtime/schema.py#L914) 和 [registry.py:61](../flashinfer/runtime/registry.py#L61)。
+CapabilitySpec 提供通用选型条件，BuildRecipe 提供完整 Tensor 参数与构建契约。二者存在重叠约束时必须保持一致，不能分别扩张支持范围。定义见 [schema.py](../flashinfer/runtime/schema.py) 和 [registry.py](../flashinfer/runtime/registry.py)。
+
+#### 推理场景与选择维度
+
+选择条件要描述本次调用的语义及完整输入组合。以下是需要区分的推理场景，
+也是登记与测试时的检查清单；列入清单不代表本仓已有相应设备实现。
+普通能力层原已检查 dtype、shape、逻辑/物理布局、SoC、核数和 specializations；
+完整量化契约及 Attention 模式检查还存在于 `QuantSpec`、`KernelConstraints`
+和 `AttentionCapabilityRule`，新增通用模型继续保留这些专用校验。
+
+分类参考 [flashinfer-ori: api/quantization](https://docs.flashinfer.ai/api/quantization.html)、
+[flashinfer-ori: api/attention](https://docs.flashinfer.ai/api/attention.html) 与
+[TensorRT 量化方案说明](https://docs.nvidia.com/deeplearning/tensorrt/latest/inference-library/quantized-types-schemes.html)。
+这些来源用于核对功能维度，不作为本仓 Ascend kernel 支持证明。
+
+#### 通用功能特性全量分类
+
+能力分类以可跨实现比较的功能契约为中心，不以 M/N/K 轴命名建立功能类别。精确 `op` 决定候选集合；
+同一集合中所有实现遵守同一公共参数、Tensor 角色和输出契约。算子类别用于组织语义，
+量化等特性按角色组合到调用上，不建立 `Attention/量化/GEMM` 这种互斥分类树。
+
+| 分类 | 功能特性 | 调用事实 / 支持域表达 | 匹配边界 |
+| --- | --- | --- | --- |
+| Tensor 与结果精度 | 每个输入/输出的 dtype，含混合精度 | `InputSignature.dtypes` / 完整 `dtype_signatures` | 按参数顺序匹配整组；不能只检查 dtype 是否分别在集合中 |
+| 数值精度 | 计算精度、累加精度、QK reduction | 下表 `compute.dtype`、`accumulator.dtype`、`attention.fp16_qk_reduction` | 不从存储 dtype 猜测计算精度；输出 dtype 仍在完整 Tensor 组合中 |
+| 量化对象 | 激活、权重、Q/K/V、输出的量化绑定 | `InferenceSpec.quantization` / case 的逐 Tensor `(index, QuantSpec)` | GEMM 示例为 A/B/out，Attention 为 Q/K/V/out；索引由公共契约确定 |
+| 量化格式 | INT8、packed INT4、FP8；W8A16/W4A16/A8W8 等组合 | `QuantSpec.storage_dtype/compute_dtype/accumulator_dtype` 与完整 dtype 组合 | 简称不是完整契约；`uint8` 不能区分 INT4 packing 或其他字节载荷 |
+| 量化方式 | 对称/非对称、zero point | `QuantSpec.scheme/has_zero_point` | 整份 QuantSpec 精确匹配；不能隐式添加 zero point |
+| 量化尺度 | tensor/channel/token/group/block、axis、group size、scale dtype | `QuantSpec.granularity/axis/group_size/scale_dtype` | scale 的实际 shape/内容及广播合法性另由 Tensor/算子契约验证 |
+| 量化存储 | 量化物理布局及 packing 顺序 | `QuantSpec.physical_layout/packing_order` | 不隐式重打包；FP4/MX 等多级 scale/码本不能仅凭一个模式标签宣称支持 |
+| 数据组织 | KV dense/ragged/paged、逻辑轴顺序 | 下表 `kv_cache.kind/layout`；Tensor `layouts/physical_layouts` | NHD/HND 与 ND/NZ 属于不同维度，页表、容量和有效长度另行核验 |
+| 计算模式 | GEMM 形式与转置；Attention 阶段与头组织；采样、归一化、激活、归约 | 下表对应命名特性；专用数学契约继续有效 | Attention 头数关系及 QK/VO 维数等继续核验；同一 op 下只匹配统一公共契约的变化 |
+| Mask 与位置 | 因果、自定义/packed mask、位置编码、窗口 | 下表 `mask.kind`、`position.encoding`、`attention.causal/sliding_window` | 模式标签不替代 mask 内容、位置参数和窗口边界校验 |
+| Attention 数值选项 | logits soft cap | `InferenceSpec.logits_soft_cap` / `supports_logits_soft_cap` | 只声明能否处理该选项，具体值仍由公共参数传给 runner |
+| 融合 | bias、activation、residual、norm、quantize 等有序计算 | `InferenceSpec.fusion_ops` / case 精确有序列表 | `bias→silu` 与 `silu→bias` 不等价；不能从不同 case 拼接 |
+| 输出契约 | LSE、路由索引、统计量等辅助结果 | `InferenceSpec.auxiliary_outputs` / case 精确列表 | 选中实现必须返回所需结果；不能靠内部算法名字猜测输出 |
+| 稀疏 | dense、块稀疏、结构化稀疏及稀疏存储 | 下表 `sparse.format` | 索引、块结构及稀疏 payload 的合法性继续由专用契约验证 |
+| 路由与并行 | MoE 选专家方式、top-k、专家并行规模 | 下表 `moe.*` | 功能匹配不提供专家通信、重排或集合通信实现 |
+| 确定性 | 是否要求确定性执行 | `InferenceSpec.deterministic` / `supports_deterministic` | 只有具备相应实现和验证证据的记录才可声明；不推定跨后端逐位相同 |
+
+以下是当前命名标量特性的**完整目录**，定义来自
+[`functional_feature_catalog()`](../flashinfer/runtime/features.py)。目录表示可以校验的调用条件，
+不表示任一后端已实现这些取值。未知键、非法类型、重复键和目录中的非法枚举值在构造时拒绝。
+目录的功能取值需要扩展时先增加显式定义及验证；不修改 descriptor 或 dispatcher 的字段。
+
+| 分类 | 特性键 | 类型 | 当前取值或含义 |
+| --- | --- | --- | --- |
+| 数值精度 | `compute.dtype` | `string` | 实际计算精度 |
+| 数值精度 | `accumulator.dtype` | `string` | 实际累加精度 |
+| 计算模式 | `gemm.mode` | `string` | `dense`, `batched`, `grouped` |
+| 计算模式 | `gemm.transpose_a` | `bool` | A 的逻辑转置语义 |
+| 计算模式 | `gemm.transpose_b` | `bool` | B 的逻辑转置语义 |
+| 计算模式 | `attention.mode` | `string` | `prefill`, `decode`, `chunked_prefill`, `multi_token_decode` |
+| 计算模式 | `attention.variant` | `string` | `mha`, `gqa`, `mqa`, `mla` |
+| 数值精度 | `attention.fp16_qk_reduction` | `bool` | 是否要求 FP16 QK reduction |
+| 数据组织 | `kv_cache.kind` | `string` | `dense`, `ragged`, `paged` |
+| 数据组织 | `kv_cache.layout` | `string` | `NHD`, `HND` |
+| Mask 与位置 | `mask.kind` | `string` | `none`, `causal`, `custom`, `packed_custom` |
+| Mask 与位置 | `position.encoding` | `string` | `NONE`, `ROPE_LLAMA`, `ALIBI` |
+| Mask 与位置 | `attention.causal` | `bool` | 是否要求因果 Attention |
+| Mask 与位置 | `attention.sliding_window` | `bool` | 是否要求滑动窗口 |
+| 稀疏 | `sparse.format` | `string` | `dense`, `block_sparse`, `structured_2_4`, `csr`, `bsr` |
+| 路由与并行 | `moe.routing_method` | `string` | `topk`, `grouped_topk`, `softmax_topk`, `sigmoid_topk` |
+| 路由与并行 | `moe.top_k` | `positive_int` | 每 Token 选择的专家数 |
+| 路由与并行 | `moe.expert_parallel_size` | `positive_int` | 专家并行规模 |
+| 计算模式 | `sampling.method` | `string` | `categorical`, `top_k`, `top_p`, `min_p`, `top_k_top_p` |
+| 计算模式 | `sampling.filter_order` | `string` | `top_k_first`, `top_p_first`, `joint` |
+| 计算模式 | `normalization.kind` | `string` | `rms`, `layer` |
+| 计算模式 | `normalization.affine` | `bool` | 是否要求仿射变换 |
+| 计算模式 | `activation.kind` | `string` | `silu`, `gelu`, `gelu_tanh`, `relu`, `sigmoid` |
+| 计算模式 | `reduction.kind` | `string` | `sum`, `max`, `min`, `mean`, `logsumexp` |
+| 计算模式 | `reduction.keepdim` | `bool` | 归约是否保留维度 |
+
+数值、量化、融合及输出使用已有的强类型契约；新增标量功能通过
+`InferenceSpec.features=((name, value), ...)` 与
+`CapabilityCase.features=(FeatureConstraint(name, allowed_values), ...)` 表达。
+旧的 `attention_modes`、`kv_cache_types` 等平铺字段保留兼容，通过相同命名映射进入同一匹配器；
+同一语义同时用两种写法声明时必须一致。后续功能不再继续给公共 dataclass 添加同类业务字段。
+`attention.mode` 只表示调用阶段，paged/ragged 由 `kv_cache.kind` 单独表达，不把 wrapper 名称
+如 `batch_decode_paged` 当作新的功能维度。旧平铺字段保留原取值，不自动转换同义词；
+公共入口接入新目录时须从真实参数标准化这些事实。
+
+以下条件保留原有职责，不混成功能模式字段：
+
+| 条件 | 归属 | 在选择/执行中的作用 |
+| --- | --- | --- |
+| 精确算子语义 | `op` / 公共接口契约 | 定位可相互替换的候选集合 |
+| backend / kernel_id | dispatch 策略 | 限制实现来源或锁定记录；不能绕过能力检查 |
+| shape、跨 Tensor 维数关系、对齐、stride、连续性、alias | Tensor/recipe/算子契约；既有 shape 条件继续有效 | 合法性及实现边界检查；本次不新增 M/N/K 字段，也不删除既有护栏 |
+| SoC、核资源、设备特征、软件依赖 | `HardwareSignature`、`DeviceCapability`、target 与环境验证 | 平台及执行资格检查；两种设备模型仍有不同字段边界 |
+| AOT/JIT、源码及二进制完整性 | `compile_mode`、recipe、manifest、artifact 校验 | 准备并验证执行产物，不是数学功能类别 |
+| stream、queue、workspace | runner/运行时/规划接口 | 资源及提交协议；声明功能不代表满足这些协议 |
+| graph / torch.compile / autograd | 相应专用契约与验收 | 未验证 capture/replay 的记录保持 `NOT_CAPTURABLE`，不得用普通功能标签放行 |
+| 性能选择 | tuning / 既有排序策略 | 仅在所有合法性条件通过后选择，不覆盖功能拒绝 |
+
+#### Attention 与 GEMM 功能实例
+
+下表为可执行的 **host 元数据实例**，所有请求均不设置 shape，验证能力层可以独立按功能选型。
+它们使用私有的 `example.functional.gemm/attention` op 和无 runner 的 descriptor，
+不是生产 kernel 登记，不能直接把 `flashinfer.matmul(a, b)` 换成需要 scale 或不同 packing 的量化调用。
+实际公共接口接入仍须交付这些参数、Tensor 契约和设备实现。
+
+| 场景 ID | 功能组合 | 示例选中后端 |
+| --- | --- | --- |
+| `gemm_bf16` | BF16 输入/输出、FP32 累加、普通 GEMM | CANN |
+| `gemm_fp16` | FP16 输入/输出、FP32 累加、普通 GEMM | Triton |
+| `gemm_w8a16` | FP16 激活、INT8 per-channel 权重、FP32 累加 | Ascend C |
+| `gemm_w4a16` | FP16 激活、INT4 group=128、low-nibble packing | Triton |
+| `gemm_a8w8` | INT8 per-token 激活、per-channel 权重、INT32 累加、BF16 输出 | CANN |
+| `gemm_fp8_block` | FP8 E4M3、block scale、FP32 累加、BF16 输出 | CANN |
+| `gemm_grouped_bias_silu` | BF16 grouped GEMM、有序 bias→SiLU 融合 | Triton |
+| `attention_prefill_mha` | BF16 MHA prefill、dense KV、causal | CANN |
+| `attention_ragged_gqa_lse` | FP16 GQA prefill、ragged KV、packed custom mask、ALiBi、LSE | Triton |
+| `attention_decode_mqa_kv8` | BF16 MQA decode、paged HND、INT8 KV | Ascend C |
+| `attention_decode_gqa_kv4` | FP16 GQA decode、paged NHD、INT4 group=128 KV | Triton |
+| `attention_chunked_window_rope` | BF16 chunked prefill、paged KV、causal 窗口、RoPE、soft cap、LSE | CANN |
+| `attention_multi_token_decode` | BF16 multi-token decode、GQA/paged/causal、确定性要求 | Triton |
+| `attention_block_sparse` | BF16 GQA prefill、块稀疏、自定义 mask | Ascend C |
+
+每个实例分别检查 auto、指定 backend 和指定 kernel_id，全部经过真实 dispatcher；
+测试还逐项移除请求特性、指定不兼容后端，以及核对量化角色/packing、融合顺序和输出差异的拒绝。
+实例中写出的后端只是验证选择的预期，并非该技术路线的固有支持限制或设备支持声明。
+
+```bash
+python3 -B tools/routing_capability_demo.py --functional --output build/functional-capabilities/scenarios.json
+```
+
+```python
+from flashinfer.runtime import CapabilityCase, CapabilitySpec, FeatureConstraint, InferenceSpec
+
+request = InferenceSpec(features=(("attention.mode", "decode"), ("kv_cache.kind", "paged")))
+capability = CapabilitySpec("example.attention", cases=(
+    CapabilityCase("paged_decode", features=(
+        FeatureConstraint("attention.mode", ("decode",)),
+        FeatureConstraint("kv_cache.kind", ("paged",)),
+    )),
+))
+# 同一个 case 内联合满足；其他 case 不能补齐本 case 缺少的功能。
+```
+
+#### 调用事实与连贯能力组合
+
+`InputSignature.inference: Optional[InferenceSpec]` 保存本次实际语义；
+`CapabilitySpec.cases: Tuple[CapabilityCase, ...]` 声明实现可执行的组合。
+字段全集见 [自动提取的结构参考](generated/dispatcher-data-models.md)。
+
+1. 外层原有条件和 `dtype_signatures` 必须通过。
+2. 每个 case 的 dtype/layout、shape/对齐、语义和必需 specializations 同时满足，即 AND。
+3. 多个 case 只需有一个完整通过，即 OR；不从不同 case 各取一个条件拼成支持结论。
+4. compute dtype、累加精度、Attention/KV/mask、MoE 等请求必须有相应允许值；缺元数据或未声明的请求均拒绝。
+5. 量化按参数索引精确匹配全部 `QuantSpec`，融合序列和辅助输出也精确匹配。空量化/融合/输出集合表示该 case 的无量化/无融合/无辅助输出路径。
+
+`specializations` 原有宽松匹配行为保留。case 内的同名字段是必需条件：
+键缺失或任一重复值不兼容都拒绝。公共入口用规范字符串构造模式值，例如
+`prefill`、`decode`、`gqa`、`paged`、`packed_custom`、`ROPE_LLAMA`；
+自定义模式值同样要求对应 case 明确声明，不按名字猜测实现能力。
+
+下面只运行元数据判断，未登记生产 kernel，也不编译或执行设备代码：
+
+```python
+from dataclasses import replace
+from flashinfer.runtime import (
+    CapabilityCase, CapabilitySpec, HardwareSignature, InferenceSpec,
+    InputSignature, ShapeRange,
+)
+
+op = "example.gemm"
+capability = CapabilitySpec(op, cases=(
+    CapabilityCase("small_bf16", dtype_signatures=(("bfloat16",) * 3,),
+        shape_ranges=(ShapeRange("M", 0, 0, 16, 64),),
+        compute_dtypes=("bfloat16",), accumulator_dtypes=("float32",)),
+    CapabilityCase("large_fp16", dtype_signatures=(("float16",) * 3,),
+        shape_ranges=(ShapeRange("M", 0, 0, 128, 256),),
+        shape_multiples=((0, 0, 32),),
+        compute_dtypes=("float16",), accumulator_dtypes=("float32",)),
+))
+hardware = HardwareSignature("Ascend950", 32)
+small = InputSignature(op, dtypes=("bfloat16",) * 3,
+    shapes=((32, 128), (128, 64), (32, 64)),
+    inference=InferenceSpec(compute_dtype="bfloat16", accumulator_dtype="float32"))
+assert not capability.unsupported_reasons(small, hardware)
+mixed_case = replace(small, dtypes=("float16",) * 3,
+    inference=InferenceSpec(compute_dtype="float16", accumulator_dtype="float32"))
+assert capability.unsupported_reasons(mixed_case, hardware)  # M=32 不在 FP16 case
+large = replace(mixed_case, shapes=((128, 128), (128, 64), (128, 64)))
+assert not capability.unsupported_reasons(large, hardware)
+```
+
+低精度的描述包含角色和量化细节，不只是一组 dtype 标签。例如，以下声明描述权重参数
+位置 1 的 W4A16 元数据，实际权重/scale Tensor、分组 shape、打包布局及 kernel 仍须单独交付：
+
+```python
+from flashinfer.runtime import QuantSpec
+
+weight = QuantSpec("symmetric", "int4_packed", "float16", "float32",
+    scale_dtype="float16", granularity="group", group_size=(128,),
+    axis=(1,), packing_order="low_nibble_first")
+w4a16 = CapabilityCase("w4a16", dtype_signatures=(("float16", "uint8", "float16"),),
+    compute_dtypes=("float16",), accumulator_dtypes=("float32",),
+    quantization=((1, weight),))
+request = InferenceSpec(compute_dtype="float16", accumulator_dtype="float32",
+    quantization=((1, weight),))
+```
+
+#### 接入位置、兼容与缓存
+
+公共语义入口在 `build_signature(..., inference=...)` 中显式传入结构化事实。
+dtype 不会自动生成 quantization，增加字段也不替 kernel 执行转换。
+signature 用于选择实现，不取代 runner 入参；公共语义选项仍须按统一调用约定
+传入实际 runner，使能力声明与执行行为一致。
+普通 dispatch、显式 backend、显式 kernel_id 和 explain 共用
+`CapabilitySpec.unsupported_reasons()`；全部过滤发生在 tuning 与来源栈/实现排序之前。
+输出分配、runner 和 host/kernel 路径保持原职责。
+
+`WorkloadSpec.inference` 为 manifest/规划入口携带相同事实，并传递到共享过滤器；
+旧 `KernelConstraints` 仍同时生效。逐 Tensor quantization 可生成旧 quant_specs 视图，
+两者同时给出时必须一致。WorkloadSpec 的扁平维数不携带 Tensor 轴映射；
+新增 case 若要求 shape、对齐或完整布局而请求缺相应元数据，会明确拒绝。
+
+旧调用不提供 inference 时，默认字段不进入序列化；旧 descriptor 未声明 cases 时保留原行为。
+显式请求新语义时，未声明 cases 的旧实现会被拒绝。现有模型可逐接口迁移，
+但必须同时从真实输入/选项构造 inference、核实 runner 支持域、更新 capability 并补数值验收；
+不得只将新字段填到全部生产登记。当前 Matmul 生产共同域仍为 BF16。
+
+新增事实参与 signature 的哈希、JSON、决策缓存和调优匹配；新增 case 参与 capability
+及 descriptor 指纹。条件组合的调优证据目前固定为精确 shape，避免将测量扩展到另一个
+case 的规模域。图捕获、数据内容驱动 tiling、量化 payload 与元数据的物理一致性、
+MX/FP4 多级 scale 等复杂存储仍保留独立的契约与设备验收要求。
 
 ### 4.4 编译与产物模型
 
@@ -246,7 +473,7 @@ AOT 使用公共构建缓存获得已验证产物，再导出 op-package。普�
 | 无匹配 AOT，策略为 DISABLED 或 CACHE_ONLY | 报 missing，不使用 JIT 缓存替代缺失的安装产物 |
 | AOT 损坏、加载失败、包身份冲突或执行失败 | 保留错误，不自动转 JIT 或其他实现 |
 
-源码入口为 [_jit_backend](../flashinfer/ascendc.py#L66) → [build_and_load](../flashinfer/jit/build.py#L123) → [_build_record](../flashinfer/jit/build.py#L75)。进程内解析锁避免同一 runner 重复绑定；构建存储锁避免同一 spec 的并发重复构建，锁内再次检查缓存。
+源码入口为 [_jit_backend](../flashinfer/ascendc/_runtime.py#L12) → [build_and_load](../flashinfer/jit/build.py#L123) → [_build_record](../flashinfer/jit/build.py#L75)。进程内解析锁避免同一 runner 重复绑定；构建存储锁避免同一 spec 的并发重复构建，锁内再次检查缓存。
 
 在当前生产路径中，JIT 磁盘查询之前会核验冻结工具链、源码和外部依赖。即使命中磁盘缓存，也需要这些构建条件。AOT 命中不经过该准备步骤。
 
@@ -320,6 +547,8 @@ C++ adapter 使用当前 NPU stream 和 TorchNPU `OpCommand::RunOpApi` 提交 ca
 
 FA 与 MatmulBiasSiLU 保持同步 eager、NOT_CAPTURABLE。FakeTensor 推导和 TorchNPU 队列接入不改变其图能力声明。
 
+Triton FA 在 task queue 开启的配置下也通过 C++ `OpCommand.SetCustomHandler.Run` 进入 TorchNPU Host 队列。它不经过 ACLNN，但与 Ascend C/ACLNN 路径最终都调用 `aclrtLaunchKernelWithHostArgs → rtsLaunchKernelWithHostArgs`。两条路径的内存归属、workspace、tilingData 传输、Host/设备提交、流同步及首次/暖调用实测，见 [FlashAttention 完整执行生命周期](flash-attention-call-chain.md#8-triton-与-ascend-c-的完整执行生命周期)。其中 `stream.stream(true)` 只排空 Host 提交；设备完成须由 Runtime 的 stream synchronize 确认。
+
 ## 8. FlashAttention 调用实例
 
 ### 8.1 支持域与身份
@@ -363,28 +592,28 @@ specializations = (("tensor_contract", "supported"),)
 | 阶段 | 源码入口 | 行为 |
 | --- | --- | --- |
 | 公共 API | [catlass_prefill.py:15](../flashinfer/attention/catlass_prefill.py#L15)，Torch 转发位于 [43](../flashinfer/attention/catlass_prefill.py#L43) | 自动注册并转发 functional/out，保留 backend/kernel_id |
-| Torch 注册与回调 | [_ops.py:76](../flashinfer/aclnn/_ops.py#L76)、[enable:93](../flashinfer/aclnn/_ops.py#L93)、[_attention:48](../flashinfer/aclnn/_ops.py#L48) | 定义 schema 并分发至 PrivateUse1 私有实现 |
-| 参数校验 | [_single_prefill_impl:48](../flashinfer/attention/catlass_prefill.py#L48)、[tensor_contract_specialization:107](../flashinfer/ascendc.py#L107) | 校验 recipe、选项和输出别名，形成 tensor_contract |
+| Torch 注册与回调 | [算子声明](../flashinfer/operators/attention/single_prefill_catlass/operator.py)、[enable:14](../flashinfer/aclnn/_ops.py#L14) | 定义 schema 并分发至 PrivateUse1 私有实现 |
+| 参数校验 | [_single_prefill_impl:48](../flashinfer/attention/catlass_prefill.py#L48)、[native_admission:58](../flashinfer/ascendc/_runtime.py#L58) | 公共元数据、选项和输出别名形成 tensor_contract；候选 admission 检查各自 recipe |
 | 签名与硬件 | [build_signature:104](../flashinfer/runtime/signature.py#L104)、[current_hardware:101](../flashinfer/runtime/hardware.py#L101) | 生成实际负载与硬件输入 |
-| 实现登记 | [get_global_registry:304](../flashinfer/runtime/registry.py#L304)、[ascendc_descriptors:88](../flashinfer/ascendc.py#L88) | 首次初始化元数据并绑定 lazy runner，不编译其他算子 |
+| 实现登记 | [get_global_registry:304](../flashinfer/runtime/registry.py#L304)、[ascendc_descriptors:13](../flashinfer/ascendc/__init__.py#L13) | 首次初始化元数据并绑定 lazy runner，不编译其他算子 |
 | 实现选择 | [catlass_prefill.py:58](../flashinfer/attention/catlass_prefill.py#L58) → [dispatch.py:130](../flashinfer/runtime/dispatch.py#L130) | 返回选中 kernel_id 与选择依据 |
-| 输出与调用 | [catlass_prefill.py:59](../flashinfer/attention/catlass_prefill.py#L59)、[_run_selected:11](../flashinfer/attention/catlass_prefill.py#L11) | 分配或复用 out，调用 descriptor.runner |
+| 输出与调用 | [catlass_prefill.py:59](../flashinfer/attention/catlass_prefill.py#L59)、[公共 run_selected](../flashinfer/runtime/runner.py#L7) | 分配或复用 out，调用 descriptor.runner |
 | AOT/JIT 解析 | [AotKernelRunner.resolve:108](../flashinfer/jit/runtime.py#L108)、[AotPackageIndex.find:235](../flashinfer/jit/discovery.py#L235) | 发现、匹配并加载产物，必要时按策略 JIT |
-| JIT 构建分支 | [_jit_backend:66](../flashinfer/ascendc.py#L66) → [build_and_load:123](../flashinfer/jit/build.py#L123) → [compile:258](../flashinfer/jit/backends.py#L258) → [compile_recipe:102](../flashinfer/jit/ascendc.py#L102) | 验证构建环境和输入，复用缓存或调用公共 driver |
+| JIT 构建分支 | [_jit_backend:12](../flashinfer/ascendc/_runtime.py#L12) → [build_and_load:123](../flashinfer/jit/build.py#L123) → [compile:258](../flashinfer/jit/backends.py#L258) → [compile_recipe:102](../flashinfer/jit/ascendc.py#L102) | 验证构建环境和输入，复用缓存或调用公共 driver |
 | Tensor adapter | [package_tensor_runner:32](../flashinfer/jit/tensor_adapter.py#L32)、[TorchOpPackageRunner.__call__:60](../flashinfer/jit/tensor_adapter.py#L60) | 校验已加载模块并进行执行边界检查 |
 | native 绑定 | [_native.prepare:73](../flashinfer/aclnn/_native.py#L73)，内部 Torch 入口位于 [91](../flashinfer/aclnn/_native.py#L91) | 登记可信 API 地址，复用 native 绑定 |
 | TorchNPU 提交 | [adapter.cpp execute:103](../csrc/aclnn_torch_adapter/adapter.cpp#L103)、[RunOpApi:180](../csrc/aclnn_torch_adapter/adapter.cpp#L180) | 按当前 stream 与框架队列策略提交同步调用 |
-| ACLNN 第一段 | [adapter.cpp:163](../csrc/aclnn_torch_adapter/adapter.cpp#L163)、[FiFlashAttentionTiling:26](../csrc/kernels/ascendc/flash_attention/op_host/flash_attention.cpp#L26) | 执行 host tiling，获得 executor 和 workspace 大小 |
+| ACLNN 第一段 | [adapter.cpp:163](../csrc/aclnn_torch_adapter/adapter.cpp#L163)、[FiFlashAttentionTiling:26](../csrc/kernels/attention/flash_attention/op_host/flash_attention.cpp#L26) | 执行 host tiling，获得 executor 和 workspace 大小 |
 | workspace 与 launch | [adapter.cpp:169](../csrc/aclnn_torch_adapter/adapter.cpp#L169)、[174](../csrc/aclnn_torch_adapter/adapter.cpp#L174) | 分配实际 workspace 并提交设备执行 |
-| 设备实现 | [catlass.cpp:9](../csrc/kernels/ascendc/flash_attention/op_kernel/catlass.cpp#L9) → [FAInferTla:547](../csrc/kernels/ascendc/flash_attention/op_kernel/fai_kernel.h#L547) | 按 DTYPE_Q 实例执行 CATLASS FA，结果写入 out |
+| 设备实现 | [catlass.cpp:15](../csrc/kernels/attention/flash_attention/op_kernel/catlass.cpp#L15) → [FAInferTla:547](../csrc/kernels/attention/flash_attention/op_kernel/arch35/fai_kernel.h#L547) | 按 DTYPE_Q 实例执行 CATLASS FA，结果写入 out |
 
-CANN 构建生成 `aclnnFiFlashAttentionGetWorkspaceSize` 与 launch host API；手写 [op_host:94](../csrc/kernels/ascendc/flash_attention/op_host/flash_attention.cpp#L94) 定义 dtype/格式、infer 和 tiling 关联。ACLNN 两段式调用均在 RunOpApi callback 中执行。
+CANN 构建生成 `aclnnFiFlashAttentionGetWorkspaceSize` 与 launch host API；手写 [op_host:94](../csrc/kernels/attention/flash_attention/op_host/flash_attention.cpp#L94) 定义 dtype/格式、infer 和 tiling 关联。ACLNN 两段式调用均在 RunOpApi callback 中执行。
 
 ### 8.4 后续调用
 
 完成绑定后，runner 复用已加载模块及 native API 绑定。调用仍需构造或校验输入元数据，调度决定可命中缓存；真实执行仍包括 Tensor 转换、host tiling/workspace 查询及 launch。未提供 out 时仍分配输出。
 
-此接口未缓存 ACLNN executor 或 tiling 结果，也不要求用户先执行 plan。其编译缓存与 batch wrapper 的 plan 资源分别管理。
+本仓未为此接口缓存 ACLNN executor 或 tiling 结果，也不要求用户先执行 plan。CANN 内部可以复用 tiling 结果；本次同 shape 暖调用仍发起 GetWorkspaceSize，但未再次进入 host tiling 回调。其编译缓存、CANN 内部复用和 batch wrapper 的 plan 资源分别管理。
 
 ## 9. 独立 JIT FA 的扩展设计
 
@@ -427,7 +656,7 @@ Triton 实现不使用 Ascend C 的 ACLNN Tensor adapter 作为通用 launcher�
 
 当前生产 Ascend C freezer 在 [declarations.py:74](../flashinfer/aot/declarations.py#L74) 仅接受 backend=ascendc、compile_mode=AOT；[AotKernelRunner](../flashinfer/jit/runtime.py#L36) 也限定 AOT 优先登记。新增纯 JIT 生产 descriptor 不能只修改 JSON 的 compile_mode，必须同时提供对应 runner 和登记接线。
 
-公共 `build_and_load`、构建存储和 compiler backend 已被 [Triton FA](../flashinfer/triton/attention.py) 复用。其独立 manifest 位于 `flashinfer/data/kernels/triton_registry.json`，不进入默认生产登记入口。
+公共 `build_and_load`、构建存储和 compiler backend 已被 [Triton FA](../flashinfer/triton/attention/single_prefill_catlass/runner.py) 复用。其独立 manifest 位于 `flashinfer/data/kernels/triton_registry.json`，不进入默认生产登记入口。
 
 当前 CATLASS 公共实现的 recipe 校验位于 [catlass_prefill.py:76](../flashinfer/attention/catlass_prefill.py#L76)。若新候选支持域不同，需要将公共语义检查与各候选的能力检查分离，使某一份 backend 配方不再决定整个公共接口的支持上限。
 
@@ -498,7 +727,7 @@ with kernel_registry_scope(registry):
 
 此例中 `flash_attention_registry()` 仅构造实验候选集合，`kernel_registry_scope()` 让公共 Torch 回调、dispatch 和 runner 查询使用同一集合。退出作用域后恢复默认 registry；生产登记和精确集合断言未改。首次准备 Triton 时按完整 spec 查询磁盘缓存，未命中且允许编译时构建；后续调用复用已加载模块，计算仍会重新执行。
 
-实现入口为 [隔离登记](../flashinfer/triton/attention.py#L129)、[Triton runner](../flashinfer/triton/attention.py#L86) 和 [公共 Torch 转发](../flashinfer/attention/catlass_prefill.py#L15)。公共接口进入同一 Torch schema 后选择 runner；Triton 使用自身 launcher 和当前 NPU stream，CATLASS 使用 C++ TorchNPU / ACLNN 桥。二者共用调用语义，各自保留执行协议。
+实现入口为 [隔离登记](../flashinfer/triton/attention/__init__.py#L10)、[Triton runner](../flashinfer/triton/attention/single_prefill_catlass/runner.py) 和 [公共 Torch 转发](../flashinfer/attention/catlass_prefill.py#L15)。公共接口进入同一 Torch schema 后选择 runner；Triton 使用自身 launcher 和当前 NPU stream，CATLASS 使用 C++ TorchNPU / ACLNN 桥。二者共用调用语义，各自保留执行协议。
 
 Ascend950 真机已验证 `backend="triton"` 与精确 `kernel_id` 两种强制调用，均实际进入 Triton runner 并成功返回。已有两条后端的真实测量，记录未通过既有显著性门槛，尚未产生可信冠军。当前计时包含下发和同步，纯设备 kernel 耗时尚未单独测量；不能据此认定 Triton 更慢。强制执行验证、自动路由机制验证和性能冠军结论分别记录，详见 [隔离验证报告](reports/triton-fa-isolated-2026-10-29.md)。
 

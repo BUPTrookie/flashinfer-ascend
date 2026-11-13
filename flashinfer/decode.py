@@ -18,7 +18,7 @@ from .runtime import (
     dispatch,
     get_global_registry,
 )
-from .prefill import _run_selected
+from .runtime.runner import run_selected as _run_selected
 from .attention.single_decode_graph import SingleDecodeWithKVCacheWrapper
 
 _OP_DECODE = "attention.decode"
@@ -303,3 +303,8 @@ def cudnn_batch_decode_with_kv_cache(
         out,
     )
     return out
+
+
+# Definitions and implementation choices are collected by the framework.
+from flashinfer.operators.catalog import install_exports as _install_operator_exports
+_install_operator_exports(globals(), domain='decode')

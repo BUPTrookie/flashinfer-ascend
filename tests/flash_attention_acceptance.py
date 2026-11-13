@@ -14,6 +14,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+from flashinfer._resources import data_root
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -78,6 +79,9 @@ def golden_inputs(generator, root, shape, dtype="float16"):
 def run_scenario(scenario, store_root):
     import torch
     import torch_npu  # noqa: F401
+
+    if "FLASHINFER_TEST_NPU_DEVICE" in os.environ:
+        torch.npu.set_device(int(os.environ["FLASHINFER_TEST_NPU_DEVICE"]))
 
     import flashinfer
     from flashinfer.ascendc import FLASH_ATTENTION_KERNEL_ID, load_contract
@@ -207,7 +211,7 @@ def run_scenario(scenario, store_root):
     assert counts["compile"] == counts["toolchain"] == (expected_source == "jit")
     assert provenance.spec_fingerprint == spec.fingerprint
     if scenario == "hit_disabled":
-        assert provenance.directory.parent == ROOT / "flashinfer/data/op_packages"
+        assert provenance.directory.parent == data_root(ROOT) / "op_packages"
     errors = []
 
     def compare(shape, expected, result, dtype="float16"):

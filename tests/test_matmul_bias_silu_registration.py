@@ -1,5 +1,7 @@
 """Production registration, dispatch bounds and generic tensor-lifetime checks."""
 
+from tests.production_inventory import PRODUCTION, STACK_COUNTS
+
 from dataclasses import dataclass, replace
 from types import SimpleNamespace
 
@@ -191,10 +193,10 @@ def test_list_kernels_reports_runtime_aot_without_compiler(monkeypatch, capsys):
     assert cli.main(["list-kernels"]) == 0
     from flashinfer.ascendc import FLASH_ATTENTION_KERNEL_ID
     lines = capsys.readouterr().out.strip().splitlines()
-    assert len(lines) == 2
+    assert len(lines) == STACK_COUNTS["ascendc"]
     assert set(lines) == {
-        MATMUL_BIAS_SILU_KERNEL_ID + "\tgemm.matmul_bias_silu\tascendc\taot (runtime discovery)",
-        FLASH_ATTENTION_KERNEL_ID + "\tascendc.single_prefill_catlass\tascendc\taot (runtime discovery)",
+        kernel_id + "\t" + op + "\tascendc\taot (runtime discovery)"
+        for kernel_id, op, *_ in PRODUCTION
     }
 
 
@@ -203,6 +205,6 @@ def test_list_kernels_keeps_reference_location(monkeypatch, capsys):
     from flashinfer.runtime import KernelDescriptor
 
     descriptor = KernelDescriptor("reference/example", "example", Backend.REFERENCE)
-    monkeypatch.setattr(cli, "load_kernel_manifest", lambda _: (descriptor,))
+    monkeypatch.setattr("flashinfer.ascendc.ascendc_descriptors", lambda: (descriptor,))
     assert cli.main(["list-kernels"]) == 0
     assert capsys.readouterr().out.strip() == "reference/example\texample\treference\treference"

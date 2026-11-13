@@ -12,6 +12,7 @@ import sys
 import pytest
 
 from flashinfer.aot.build import export_op_package
+from flashinfer._resources import data_root, recipe_root
 from flashinfer.jit import AscendCBuildConfig, BuildRecipe, load_build_recipes, resolve_build_recipe
 from flashinfer.jit.core import JitSpec, _canonical_hash
 from flashinfer.jit.op_package import OP_PACKAGE_ADAPTER_HASH, OpPackageModule
@@ -21,23 +22,16 @@ from tests.legacy_ascendc import ROOT as LEGACY_ROOT, load_build_recipes as load
 from tests.legacy_ascendc import resolve_build_recipe as resolve_legacy
 from tests.test_ascendc_op_package import generation, unit  # noqa: F401
 
+from tests.production_inventory import PUBLIC_RECIPES, PRODUCTION_OPS
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_public_manifest_set_is_exactly_v2_and_preserves_production_inventory():
-    recipes = tuple(r for p in sorted((ROOT / 'csrc/recipes').glob('*.json')) for r in load_build_recipes(p))
-    assert {(r.recipe_id, r.implementation, r.target_soc, r.schema_version, r.output_kind) for r in recipes} == {
-        ('flash_attention', 'catlass', 'Ascend950', 2, 'op_package'),
-        ('matmul_bias_silu', 'native', 'Ascend950', 2, 'op_package'),
-        ('matmul_probe', 'native', 'Ascend950', 2, 'op_package'),
-        ('matmul_probe', 'catlass', 'Ascend950', 2, 'op_package'),
-        ('matmul_probe', 'native', 'ascend910b1', 2, 'op_package'),
-        ('matmul_probe', 'native', 'ascend910_9391', 2, 'op_package'),
-        ('matmul_probe', 'native', 'ascend310p1', 2, 'op_package'),
-    }
-    records = json.loads((ROOT / 'flashinfer/data/kernels/registry.json').read_text())['kernels']
-    assert {r['op'] for r in records if r['backend'] == 'ascendc'} == {
-        'gemm.matmul_bias_silu', 'ascendc.single_prefill_catlass'}
+    recipes = tuple(r for p in sorted({p for folder in (recipe_root(ROOT), ROOT / 'csrc/recipes') for p in folder.glob('*.json')}) for r in load_build_recipes(p))
+    assert {(r.recipe_id, r.implementation, r.target_soc, r.schema_version, r.output_kind) for r in recipes} == PUBLIC_RECIPES
+    records = json.loads((data_root(ROOT) / 'kernels/registry.json').read_text())['kernels']
+    assert {r['op'] for r in records if r['backend'] == 'ascendc'} == PRODUCTION_OPS
     assert inspect.signature(BuildRecipe).parameters['schema_version'].default == 2
     assert AscendCBuildConfig().output_kind == 'op_package'
 

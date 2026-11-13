@@ -1,3 +1,4 @@
+from tests.production_inventory import DEFAULT_DESCRIPTOR_COUNT, PRODUCTION_KERNEL_IDS
 import hashlib
 import json
 import tempfile
@@ -329,16 +330,20 @@ class KernelExecutionBodyTests(unittest.TestCase):
 
         registry = get_global_registry()
         legacy = _builtin_descriptors()
-        self.assertEqual(len(legacy), 79)
-        self.assertEqual(len(registry.descriptors()), 81)
+        self.assertEqual(len(legacy), 81)
+        self.assertEqual(len(registry.descriptors()), DEFAULT_DESCRIPTOR_COUNT)
         self.assertEqual(
             {d.kernel_id for d in registry.descriptors()} - {d.kernel_id for d in legacy},
-            {MATMUL_BIAS_SILU_KERNEL_ID, FLASH_ATTENTION_KERNEL_ID},
+            PRODUCTION_KERNEL_IDS,
         )
         for declaration in legacy:
             existing = registry.get(declaration.kernel_id)
             with self.subTest(kernel_id=existing.kernel_id):
                 self.assertEqual(replace(existing), existing)
+                if existing.kernel_id == "triton/gemm/matmul_v1/Ascend950":
+                    self.assertEqual(existing.source.language, "triton")
+                    self.assertEqual(existing.target_soc, "Ascend950")
+                    continue
                 self.assertIsNone(existing.source)
                 self.assertIsNone(existing.target_soc)
         production = registry.get(MATMUL_BIAS_SILU_KERNEL_ID)
