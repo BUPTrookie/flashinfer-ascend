@@ -12,6 +12,7 @@ All Ascend C operator sources live under `csrc/kernels/<domain>/<op>/`:
 - `gemm/matmul/` and `gemm/matmul_bias_silu/`: production native implementations.
 - `gemm/grouped_matmul_swiglu_quant/`: grouped integer GEMM, SwiGLU and quantization.
 - `attention/flash_attention/`: production CATLASS implementation.
+- `attention/sparse_flash_attention/`: arch22 MLA sparse attention, with an Ascend910B AOT-only declaration.
 
 Each operator owns `op_host/` (OpDef, inference and tiling), `op_kernel/`
 (device code) and `include/` (shared tiling layouts). Production recipes are generated under
@@ -39,7 +40,7 @@ live in architecture directories, following vLLM-Ascend's per-operator layout:
 └── include/                 # shared host/device wire layouts
 ```
 
-GMM's implementation and tiler currently live in `arch22/`. Matmul,
+GMM and SparseFlashAttention implementations and tilers currently live in `arch22/`. Matmul,
 MatmulBiasSilu and CATLASS FlashAttention implementations live in `arch35/`;
 their entries reject other device architectures at compile time. The native
 FP32 Matmul probe uses `common/`; its CATLASS variant uses `arch35/`.
@@ -48,5 +49,7 @@ SoC support. Host ABI and Python runners remain shared. Source moves require
 recipe regeneration and spec refreezing before compiling or loading artifacts.
 
 Logical definitions and backend descriptor/runner declarations follow
-[the operator layout](../../docs/operator-layout.md); generated recipes and
+[the operator layout](../../docs/concepts/architecture.md#作者目录与框架职责); generated recipes and
 packaged indexes are derived from those declarations.
+
+Author workflow: [adding an operator](../../docs/development/adding-an-operator.md). Build and package rules: [compilation and delivery](../../docs/ascendc_aot.md).
