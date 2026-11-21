@@ -11,6 +11,7 @@
 | batch paged decode | BatchDecode wrapper 的 plan/run | CANN 路径，计划与 workspace 由 wrapper 持有；名字带 CUDAGraph 不扩大图能力 |
 | 独立 dense CATLASS | `single_prefill_with_kv_cache_catlass` | Ascend910B/Ascend910C/Ascend950、本仓 AOT，允许声明范围内的缺包 JIT |
 | MLA sparse | `sparse_flash_attention` | Ascend910B/Ascend910C 共用 arch22、本仓 AOT-only；没有同 op 的 CANN/Triton 生产实现 |
+| 分组 QKV 重排 | `permute_qkv(q, k, v, split_size)` | Ascend910B/Ascend910C，arch22 向量核 AOT |
 
 普通 single 的 auto 会读取全局默认，普通 batch Tensor 的非 reference plan 分支固定请求 cann；它们不是任意后端的统一占位接口。完整规则见 [后端路由](../concepts/backend-routing.md)。
 
@@ -23,6 +24,14 @@ output = flashinfer.single_prefill_with_kv_cache_catlass(q, k, v, backend="ascen
 ```
 
 该入口与普通 `attention.single_prefill` 是不同逻辑 op，不会仅因数学相似就自动混选 CANN。实验 Triton FA 需要独立 registry 作用域；默认生产集合不因此变化。
+
+## arch22 PermuteQkv
+
+`flashinfer.permute_qkv(q, k, v, split_size)` 接收 `q[S,B,Nq,D]` 和 `k/v[S,B,Nkv,D]`。`split_size` 表示组数。每组顺序存放该组的 Q、K、V 头，返回一个连续的 `[Nq+2*Nkv,S,B,D]` 张量。例如 `Nq=4, Nkv=2, split_size=2` 时，输出头顺序为 `Q0,Q1,K0,V0,Q2,Q3,K1,V1`。
+
+三个输入取相同的 FP16 或 BF16 类型，维度均为正数，存储为连续 ND。四维 NPU 张量可用 `torch_npu.npu_format_cast(t, 2)` 准备。`Nq` 须能被 `Nkv` 整除，`Nkv` 须能被 `split_size` 整除。arch22 还要求 `D` 为 16 的倍数，`Nq <= 4095`，输出最多 `2**31-1` 个元素。`S*B` 为偶数时至少两行 Q 需要放入 180 KiB 的 UB，为奇数时至少一行，每行占 `2*Nq*D` 字节。
+
+`flashinfer.unpermute_qkv(x, n_k)` 接收连续的 `[split,S,B,heads_per_split,D]`。每个分组内依次存放 Q、K、V。`n_k` 是所有分组合计的 KV 头数，须能被 `split` 整除。返回的 Q、K、V 形状依次为 `[S,B,Nq,D]`、`[S,B,n_k,D]`、`[S,B,n_k,D]`，其中 `Nq = split * heads_per_split - 2*n_k`。FP16 和 BF16 均要求 D 按 16 对齐，一行完整的 Q/K/V 应能放入 180 KiB UB。
 
 ## arch22 SparseFlashAttention
 

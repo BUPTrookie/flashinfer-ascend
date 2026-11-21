@@ -265,6 +265,53 @@ def test_mixed_package_verifies_both_core_entries_and_declared_abi(mixed_package
     assert verify_op_package(directory, spec)[1] == recipe
 
 
+def test_vector_package_checks_aiv_metadata_and_unsuffixed_entry(mixed_package):
+    directory, spec, recipe, paths, metadata = mixed_package
+    recipe = replace(recipe, task_type="aiv_only", sync_policy="compiler_default")
+    with pytest.raises(SchemaError, match="task_type/sync_policy"):
+        replace(recipe, sync_policy="cross_core_flags")
+    spec = replace(spec, input_fingerprints=tuple(
+        (key, recipe.fingerprint if key == "build_recipe" else value) for key, value in spec.input_fingerprints))
+    paths = write_fixture(directory, recipe, spec)
+    record = directory / paths["metadata"]
+    vector = dict(json.loads(record.read_text()), core_type="AIV", coreType="VectorCore",
+                  magic="RT_DEV_BINARY_MAGIC_ELF_AIVEC", supportInfo=metadata["supportInfo"], workspace=metadata["workspace"])
+    record.write_text(json.dumps(vector))
+    assert verify_op_package(directory, spec)[1] == recipe
+    for key, value in (("core_type", "AIC"), ("coreType", "MIX"), ("magic", "RT_DEV_BINARY_MAGIC_ELF_AICUBE")):
+        record.write_text(json.dumps(dict(vector, **{key: value})))
+        with pytest.raises(SchemaError, match="AIV executable"):
+            verify_op_package(directory, spec)
+    record.write_text(json.dumps(dict(vector, kernelList=[{"kernelName": recipe.package_op_type + "_missing"}])))
+    with pytest.raises(SchemaError, match="does not define"):
+        verify_op_package(directory, spec)
+
+
+def test_synchronized_vector_package_requires_aiv_entry_and_ffts_metadata(mixed_package):
+    directory, spec, recipe, paths, metadata = mixed_package
+    recipe = replace(recipe, task_type="aiv_hard_sync")
+    with pytest.raises(SchemaError, match="synchronization"):
+        replace(recipe, sync_policy="compiler_default")
+    spec = replace(spec, input_fingerprints=tuple(
+        (k, recipe.fingerprint if k == "build_recipe" else v) for k, v in spec.input_fingerprints))
+    paths = write_fixture(directory, recipe, spec)
+    kernel = dict(metadata["kernelList"][0], taskRation="0:1")
+    binary = elf_fixture((kernel["kernelName"] + "_mix_aiv",), machine=0x1029, kind=2)
+    (directory / paths["binary"]).write_bytes(binary)
+    record = directory / paths["metadata"]
+    metadata.update(kernelList=[kernel], sha256=hashlib.sha256(binary).hexdigest())
+    record.write_text(json.dumps(metadata))
+    assert verify_op_package(directory, spec)[1] == recipe
+    for change in (dict(intercoreSync=0), dict(kernelList=[dict(kernel, crossCoreSync=0)]),
+                   dict(kernelList=[dict(kernel, taskRation="1:2")]), dict(coreType="VectorCore")):
+        record.write_text(json.dumps(dict(metadata, **change)))
+        with pytest.raises(SchemaError, match="synchronized AIV"):
+            verify_op_package(directory, spec)
+    record.write_text(json.dumps(dict(metadata, kernelList=[dict(kernel, kernelName=kernel["kernelName"] + "_missing")])))
+    with pytest.raises(SchemaError, match="does not define"):
+        verify_op_package(directory, spec)
+
+
 @pytest.fixture
 def string_attribute_package(mixed_package):
     directory, spec, recipe, paths, metadata = mixed_package

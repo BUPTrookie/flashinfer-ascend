@@ -114,6 +114,10 @@ def test_native_declarations_close_the_selected_architecture_and_platform_tiler(
             310,
             "arch22",
         ),
+        ("attention/permute_qkv/op_kernel/permute_qkv.cpp", 310, "arch22"),
+        ("attention/unpermute_qkv/op_kernel/unpermute_qkv.cpp", 310, "arch22"),
+        ("moe/histgram/op_kernel/histgram.cpp", 310, "arch22"),
+        ("moe/merge_chunk2/op_kernel/merge_chunk2.cpp", 310, "arch22"),
         ("gemm/matmul/op_kernel/native.cpp", 220, "arch35"),
         ("gemm/matmul_bias_silu/op_kernel/native.cpp", 220, "arch35"),
         ("attention/flash_attention/op_kernel/catlass.cpp", 200, "arch22 or arch35"),
@@ -327,7 +331,7 @@ from flashinfer.runtime import DispatchError, HardwareSignature, dispatch
 
 
 @pytest.mark.parametrize("name", ["single_prefill_catlass", "grouped_matmul_swiglu_quant",
-                                 "sparse_flash_attention"])
+                                 "sparse_flash_attention", "permute_qkv", "unpermute_qkv", "histgram", "merge_chunk2"])
 def test_arch22_variants_share_sources_and_runner_but_not_frozen_identity(name):
     variants = {d.native.target_soc: d for d in implementations(backend="ascendc")
                 if d.operator.name == name}
@@ -352,7 +356,7 @@ def test_shared_wheel_inventory_is_exactly_both_physical_targets():
                 if d.native.target_soc in ("Ascend910B", "Ascend910C")}
     assert set(production_kernel_ids("Ascend910B")) == expected
     assert set(production_kernel_ids("Ascend910C")) == expected
-    assert len(expected) == 6
+    assert len(expected) == 14
 
 
 @pytest.mark.parametrize("alias", ["Ascend910C", "Ascend910_9362", "Ascend910_9391", "Ascend910_9392"])
@@ -382,7 +386,7 @@ def test_shared_public_semantics_route_to_only_the_physical_soc(name, soc):
 
 
 @pytest.mark.real_compile
-@pytest.mark.parametrize("name", ["grouped_matmul_swiglu_quant", "sparse_flash_attention"])
+@pytest.mark.parametrize("name", ["grouped_matmul_swiglu_quant", "sparse_flash_attention", "permute_qkv", "unpermute_qkv", "histgram", "merge_chunk2"])
 def test_a3_shared_arch22_native_package_cross_compile(name, tmp_path):
     from flashinfer.aot.build import build_production_packages
     from flashinfer.jit.cache import verify_build_directory

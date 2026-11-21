@@ -81,6 +81,22 @@ def test_builtin_partition_is_complete_disjoint_and_has_no_within_stack_data():
             "ascendc/gemm/grouped_matmul_swiglu_quant/native/op_package/Ascend910B",
             "ascendc/gemm/grouped_matmul_swiglu_quant/native/op_package/Ascend910C",
         }),
+        ("ascendc", "attention.permute_qkv"): frozenset({
+            "ascendc/attention/permute_qkv/native/Ascend910B",
+            "ascendc/attention/permute_qkv/native/Ascend910C",
+        }),
+        ("ascendc", "attention.unpermute_qkv"): frozenset({
+            "ascendc/attention/unpermute_qkv/native/Ascend910B",
+            "ascendc/attention/unpermute_qkv/native/Ascend910C",
+        }),
+        ("ascendc", "fused_moe.histgram"): frozenset({
+            "ascendc/fused_moe/histgram/native/Ascend910B",
+            "ascendc/fused_moe/histgram/native/Ascend910C",
+        }),
+        ("ascendc", "fused_moe.merge_chunk2"): frozenset({
+            "ascendc/fused_moe/merge_chunk2/native/Ascend910B",
+            "ascendc/fused_moe/merge_chunk2/native/Ascend910C",
+        }),
         ("ascendc", "attention.sparse_flash_attention"): frozenset({
             "ascendc/attention/sparse_flash_attention/native/Ascend910B",
             "ascendc/attention/sparse_flash_attention/native/Ascend910C",

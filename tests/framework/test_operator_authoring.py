@@ -296,6 +296,48 @@ def test_existing_85_and_reviewed_arch22_capabilities_match_exactly():
             auxiliary_outputs=("softmax_max", "softmax_sum") if lse else (),
         ) for lse in (False, True)),
     ).to_dict()
+    # Head counts, UB capacity and the 32-bit element offset also have coupled admission checks.
+    from flashinfer.runtime import ShapeRange
+    permute_axes = (("S", "B", "Nq", "D"), ("S", "B", "Nkv", "D"),
+                    ("S", "B", "Nkv", "D"), ("Nout", "S", "B", "D"))
+    bounds = {"S": (1, 2**31 - 1), "B": (1, 2**31 - 1), "Nq": (1, 4095),
+              "Nkv": (1, 4095), "Nout": (3, 12285), "D": (16, 92160)}
+    expected["ascendc/attention/permute_qkv/native/Ascend910B"] = CapabilitySpec(
+        op="attention.permute_qkv", soc_models=("Ascend910B",), dtypes=("float16", "bfloat16"),
+        physical_layouts=("ND",),
+        cases=(CapabilityCase(name="head_permutation", compute_dtypes=("float16", "bfloat16")),),
+        shape_ranges=tuple(ShapeRange(name, tensor, axis, *bounds[name])
+                           for tensor, axes in enumerate(permute_axes) for axis, name in enumerate(axes)),
+    ).to_dict()
+    # Direct arch22 operators share their logical rules across the two physical targets.
+    # Keep these independent expectations explicit, including mixed data/count dtype signatures.
+    fp = ("float16", "bfloat16")
+    offset = 2**31 - 1
+    ub = 180 * 1024 // 2
+    def ranges(axes, limits):
+        return tuple(ShapeRange(name, tensor, axis, *limits[name])
+                     for tensor, shape in enumerate(axes) for axis, name in enumerate(shape))
+    unpack_axes = (("Split", "S", "B", "Group", "D"), ("S", "B", "Nq", "D"),
+                   ("S", "B", "Nkv", "D"), ("S", "B", "Nkv", "D"))
+    unpack_limits = {"Split": (1, ub), "S": (1, offset), "B": (1, offset), "Group": (1, ub),
+                     "D": (16, ub), "Nq": (1, ub), "Nkv": (1, ub)}
+    expected["ascendc/attention/unpermute_qkv/native/Ascend910B"] = CapabilitySpec(
+        op="attention.unpermute_qkv", soc_models=("Ascend910B",), dtypes=fp, physical_layouts=("ND",),
+        cases=(CapabilityCase(name="unpack_heads", compute_dtypes=fp),),
+        shape_ranges=ranges(unpack_axes, unpack_limits)).to_dict()
+    expected["ascendc/fused_moe/histgram/native/Ascend910B"] = CapabilitySpec(
+        op="fused_moe.histgram", soc_models=("Ascend910B",), dtypes=("int32",), physical_layouts=("ND",),
+        cases=(CapabilityCase(name="expert_counts", compute_dtypes=("int32",)),),
+        shape_ranges=(ShapeRange("T", 0, 0, 1, offset), ShapeRange("E", 1, 0, 1, 2**24))).to_dict()
+    merge_axes = (("T1", "H1"), ("T2", "H1"), ("T1", "H2"), ("T2", "H2"), ("E",), ("E",),
+                  ("T", "H1"), ("T", "H2"), ("E",))
+    merge_limits = {"T1": (1, offset), "T2": (1, offset), "T": (2, offset), "E": (1, 1024),
+                    "H1": (16, 90112), "H2": (16, 90112)}
+    expected["ascendc/fused_moe/merge_chunk2/native/Ascend910B"] = CapabilitySpec(
+        op="fused_moe.merge_chunk2", soc_models=("Ascend910B",), physical_layouts=("ND",),
+        cases=(CapabilityCase(name="expert_merge", compute_dtypes=fp,
+                              dtype_signatures=tuple((d, d, d, d, "int32", "int32", d, d, "int32") for d in fp)),),
+        shape_ranges=ranges(merge_axes, merge_limits)).to_dict()
     # Only these reviewed general-purpose backends extend their SoC lists.
     # The frozen fixture remains unchanged; every other capability field is exact.
     for kernel_id in (
@@ -323,6 +365,10 @@ def test_existing_85_and_reviewed_arch22_capabilities_match_exactly():
         "ascendc/t4/flash_attention/catlass/op_package/Ascend910B",
         "ascendc/gemm/grouped_matmul_swiglu_quant/native/op_package/Ascend910B",
         "ascendc/attention/sparse_flash_attention/native/Ascend910B",
+        "ascendc/attention/permute_qkv/native/Ascend910B",
+        "ascendc/attention/unpermute_qkv/native/Ascend910B",
+        "ascendc/fused_moe/histgram/native/Ascend910B",
+        "ascendc/fused_moe/merge_chunk2/native/Ascend910B",
     ):
         expected[kernel_id.rsplit("/", 1)[0] + "/Ascend910C"] = dict(
             expected[kernel_id], soc_models=["Ascend910C"])
@@ -334,8 +380,8 @@ def test_all_existing_implementations_have_one_authority_and_a_bound_runner():
     production = [d for _, _, d in declarations if d.scope == 'global']
     registry = get_global_registry()
     assert {d.kernel_id for d in production} == {d.kernel_id for d in registry.descriptors()}
-    assert len(production) == 90
-    assert len(discover(ROOT)) == 48
+    assert len(production) == 98
+    assert len(discover(ROOT)) == 52
     assert len([d for _, _, d in declarations if d.scope == 'experimental']) == 1
     for directory, _, declaration in declarations:
         assert directory.parent.parent.name == declaration.backend.value
