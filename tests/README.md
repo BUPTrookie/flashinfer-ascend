@@ -13,13 +13,13 @@
 
 CATLASS 独立参考脚本位于 `support/catlass_golden.py`，按原始源码 SHA256 校验。固定 ABI 样本和能力基线分别由构建交付与框架测试目录维护。
 
-`production_inventory.py` 独立维护审核后的精确生产集合。`framework/test_replay_param_*.py` 是图参数更新的协议与真机测试入口，其路径同时用于图能力声明和证据审计。
+新增实现的独立预期放在 `inventory/<op>.py`，`production_inventory.py` 汇总这些记录和冻结基线。`framework/test_replay_param_*.py` 是图参数更新的协议与真机测试入口，其路径同时用于图能力声明和证据审计。
 
 根目录 `conftest.py` 是 pytest 自动发现的插件加载入口，公共逻辑位于 `support/pytest_plugin.py`：SoC 选择、设备初始化、路由缓存隔离和共享单元测试夹具。`operators/conftest.py` 将设备、格式及 AOT 准备限定在算子精度测试范围。`framework/test_replay_param_runtime.py` 检查图参数更新的状态、资源与异常清理；`framework/test_replay_param_npu.py` 在声明匹配的 A5 设备上验证实际 capture/update/replay 与 eager 结果。
 
 ## 算子精度
 
-`operators/test_sparse_flash_attention.py` 与 `operators/test_grouped_matmul_swiglu_quant.py` 直接执行：
+`operators/test_declared_implementations.py` 按已声明的 SoC 选择本机实现。以稀疏 Attention 的公开入口为例：
 
 ```python
 args, options, expected = cases.sample(torch, torch_npu, **configuration)
@@ -41,12 +41,12 @@ for value, reference, (atol, rtol) in zip(actual, expected, cases.TOLERANCES):
 ```bash
 FLASHINFER_OPERATOR_TEST_RELEASE="$PWD/build/sfa-aot" \
 FLASHINFER_OPERATOR_TEST_ADAPTER="$PWD/build/aclnn" \
-python -B tools/run_regression.py --profile full tests/operators/test_sparse_flash_attention.py
+python -B tools/run_regression.py --profile full -k sparse_flash_attention tests/operators/test_declared_implementations.py
 ```
 
 `FLASHINFER_OPERATOR_TEST_RELEASE` 指向设备包导出根目录，`FLASHINFER_OPERATOR_TEST_ADAPTER` 指向包含 `libflashinfer_aclnn.so` 和 `manifest.json` 的原生桥目录。指定两者后公共 fixture 复用产物，设置运行时搜索路径并禁止 JIT。未指定的部分由 fixture 自动构建；自动设备包构建选择本机 SoC 的全部生产 AOT 实现。
 
-SFA 子集产物对应单个测试文件；运行整个 `tests/operators/` 需提供当前 SoC 所需的完整产物，或省略复用变量由 fixture 准备。SFA/GMM 精度测试标记为 `real_compile`，使用 `full` 或 `compile` 档；回归入口按本机芯片选择范围并报告其他目标的未执行数量。wheel 安装后使用 `python -B -m flashinfer selftest` 验证，运行位置与导入核对见 [安装产物验证](../README.md#wheel-构建与安装验证)。
+SFA 子集产物对应按算子名选择的用例；运行整个 `tests/operators/` 需提供当前 SoC 所需的完整产物，或省略复用变量由 fixture 准备。SFA/GMM 精度测试标记为 `real_compile`，使用 `full` 或 `compile` 档；回归入口按本机芯片选择范围并报告其他目标的未执行数量。wheel 安装后使用 `python -B -m flashinfer selftest` 验证，运行位置与导入核对见 [安装产物验证](../README.md#wheel-构建与安装验证)。
 
 ## 运行范围
 
@@ -57,7 +57,7 @@ python -B tools/run_regression.py --profile full tests/operators
 python -B -m pytest -p no:cacheprovider --collect-only --soc all
 ```
 
-回归入口默认 `--soc auto`，读取本机芯片。`requires_soc` 只用于有明确硬件前提的真机测试；异芯片用例在收集时 deselected，记录数量，不能写成已验证。普通 pytest 默认 `--soc=all` 保留全芯片收集；指定 `--soc=auto` 才按本机选择。
+回归入口和 pytest 执行硬件用例时默认读取本机芯片。`--collect-only` 单独使用时列出全芯片范围，可加 `--soc A2`、`--soc A3` 或 `--soc A5` 查看一类芯片的 kernel ID。异芯片用例在收集时记为 deselected。
 
 quick 排除 `real_compile`，仍可能执行 NPU；full 包含所选芯片的编译与数值用例。一次本机 full 不证明其他芯片通过。没有设备、依赖或适用产物必须显式失败；回归入口仍将 skip 或零用例视为失败。
 
