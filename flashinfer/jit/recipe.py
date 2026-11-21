@@ -296,10 +296,10 @@ class _Recipe:
             raise SchemaError("v2 workspace_bytes must be nonnegative integer or dynamic")
         elif self.workspace_host_entry is not None:
             raise SchemaError("fixed workspace must not declare workspace_host_entry")
-        if self.task_type == "aic_aiv":
+        if self.task_type in {"aic_aiv", "aiv_hard_sync"}:
             if self.sync_policy != "cross_core_flags":
-                raise SchemaError("aic_aiv requires explicit cross_core_flags synchronization")
-        elif self.task_type != "aic_only" or self.sync_policy != "compiler_default":
+                raise SchemaError(f"{self.task_type} requires explicit cross_core_flags synchronization")
+        elif self.task_type not in {"aic_only", "aiv_only"} or self.sync_policy != "compiler_default":
             raise SchemaError("unsupported v2 task_type/sync_policy")
         parameters = self.tensor_parameters
         if (not parameters or any(not isinstance(p, TensorParameter) for p in parameters)

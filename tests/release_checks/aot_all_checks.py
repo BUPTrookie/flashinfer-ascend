@@ -100,5 +100,11 @@ def test_all_missing_dependency_reports_unbuilt_kernel_before_compilation(monkey
 
 def test_all_rejects_unsupported_target_instead_of_silently_building_950(monkeypatch, tmp_path):
     monkeypatch.setattr(build.AscendCToolchain, "discover", lambda *args: object())
-    with pytest.raises(SchemaError, match="requires target Ascend950"):
+    with pytest.raises(SchemaError) as caught:
         build.build_production_packages(output_dir=tmp_path, targets=("ascend910b1",))
+    # Discovery order may change when an operator is added. Bind the error to
+    # the actual failing kernel and its independently reviewed physical target.
+    assert str(caught.value) in {
+        f"frozen production kernel {kernel_id} requires target {soc}; requested ascend910b1"
+        for kernel_id, _, _, _, soc in PRODUCTION
+    }

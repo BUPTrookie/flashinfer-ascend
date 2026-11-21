@@ -34,16 +34,16 @@
 | backend | 全局实现数 | 实现来源 | 构建方式 |
 | --- | ---: | --- | --- |
 | `cann` | 41 | 已安装的 Torch/TorchNPU/CANN API 或组合 | 本框架无设备编译步骤 |
-| `ascendc` | 9 | 本仓 Ascend C 原生实现，v2 ACLNN op-package | AOT；部分实现允许受控缺包 JIT |
+| `ascendc` | 17 | 本仓 Ascend C 原生实现，v2 ACLNN op-package | AOT；部分实现允许受控缺包 JIT |
 | `triton` | 2 | Matmul、Gemma fused Add RMSNorm 的 Triton kernel | JIT |
 | `reference` | 38 | 显式参考实现 | 随 Python 包提供 |
 
-统计范围为源码默认注册表：48 个逻辑 op、90 个具体实现；实验实现单独登记。二进制 wheel 的原生注册项与随包目标一致。实现声明限定可接收的设备与输入组合，数值测试覆盖范围单独记录。
+统计范围为源码默认注册表：52 个逻辑 op、98 个具体实现；实验实现单独登记。二进制 wheel 的原生注册项与随包目标一致。实现声明限定可接收的设备与输入组合，数值测试覆盖范围单独记录。
 
 | 产品系列 | 物理 SoC | 源码架构 | wheel 包名 | 原生 AOT 算子 |
 | --- | --- | --- | --- | --- |
-| A2 | `Ascend910B` | arch22 | `flashinfer_ascend910b` | GMM/SwiGLU/量化、SFA、CATLASS prefill |
-| A3 | `Ascend910C` | arch22 | `flashinfer_ascend910b` | GMM/SwiGLU/量化、SFA、CATLASS prefill |
+| A2 | `Ascend910B` | arch22 | `flashinfer_ascend910b` | GMM/SwiGLU/量化、SFA、PermuteQkv、UnpermuteQkv、Histgram、MergeChunk2、CATLASS prefill |
+| A3 | `Ascend910C` | arch22 | `flashinfer_ascend910b` | GMM/SwiGLU/量化、SFA、PermuteQkv、UnpermuteQkv、Histgram、MergeChunk2、CATLASS prefill |
 | A5 | `Ascend950` | arch35 | `flashinfer_ascend950` | Matmul、MatmulBiasSiLU、CATLASS prefill |
 
 A2/A3 共享源码架构与发行包，各自使用严格绑定物理 SoC 的产物。A3 的编译目标和测试入口已登记，真机数值及安装验证尚未完成；CANN/Triton 的支持域仍按具体算子声明判断。
@@ -121,6 +121,32 @@ python -B tools/run_regression.py --profile full tests/operators/test_sparse_fla
 
 A3 对应 kernel ID 的 SoC 后缀为 `Ascend910C`，复用同一测试模块并在 A3 独立验收。原生 kernel ID 可通过 `python -B -m flashinfer list-kernels` 查询，目标设备与用例分别见 [支持矩阵](docs/backends/overview.md) 和 [精度测试说明](tests/README.md)。运行时通过 `FLASHINFER_AOT_PATHS`、`FLASHINFER_ACLNN_ADAPTER_PATH` 定位设备包与桥；共享测试 fixture 根据复用变量自动配置这两个路径。
 
+`permute_qkv` 复用上述环境和 ACLNN 桥。在 A2 上执行以下命令，可通过 `flashinfer.permute_qkv` 检查 FP16、BF16 的逐元素重排结果。输入为连续物理 ND，输出形状为 `[Nq + 2*Nkv, S, B, D]`。
+
+```bash
+python -B -m flashinfer.operators build \
+  --kernel-id ascendc/attention/permute_qkv/native/Ascend910B \
+  --cache-dir build/aot-cache --output-dir build/permute-qkv-aot
+FLASHINFER_OPERATOR_TEST_RELEASE="$PWD/build/permute-qkv-aot" \
+FLASHINFER_OPERATOR_TEST_ADAPTER="$PWD/build/aclnn" \
+python -B tools/run_regression.py --profile full tests/operators/test_permute_qkv.py
+```
+
+`unpermute_qkv`、`histgram` 和 `merge_chunk2` 也可共用一个产物目录和上面的 ACLNN 桥。在仓库根目录生成并检查元数据后，以下命令编译 A2 的三个算子并逐输出比对 CPU 标杆。A3 使用 `Ascend910C` 构建，在对应设备上执行同一组测试。
+
+```bash
+soc=Ascend910B
+python -B -m flashinfer.operators build \
+  --kernel-id "ascendc/attention/unpermute_qkv/native/$soc" \
+  --kernel-id "ascendc/fused_moe/histgram/native/$soc" \
+  --kernel-id "ascendc/fused_moe/merge_chunk2/native/$soc" \
+  --cache-dir build/aot-cache --output-dir "build/qkv-moe-$soc"
+FLASHINFER_OPERATOR_TEST_RELEASE="$PWD/build/qkv-moe-$soc" \
+FLASHINFER_OPERATOR_TEST_ADAPTER="$PWD/build/aclnn" \
+python -B tools/run_regression.py --profile full \
+  tests/operators/test_unpermute_qkv.py tests/operators/test_histgram.py tests/operators/test_merge_chunk2.py
+```
+
 ### wheel 构建与安装验证
 
 默认 wheel 构建按本机芯片选择交付分组，编译该分组的完整 AOT 集合并打包原生桥，结果写入 `dist/`：
@@ -129,7 +155,7 @@ A3 对应 kernel ID 的 SoC 后缀为 `Ascend910C`，复用同一测试模块并
 python -B setup.py bdist_wheel
 ```
 
-A2/A3 的 `flashinfer_ascend910b` 包包含两种 SoC 各自的三项产物；A5 的 `flashinfer_ascend950` 包包含三项产物。默认构建采用本机芯片分组；`FLASHINFER_AOT_CONFIG`、`FLASHINFER_AOT_PREBUILT` 和 `FLASHINFER_AOT_ALL=0` 分别提供配置选择、预编译产物打包及源码模式，具体约束见 [构建模式](docs/ascendc_aot.md#原生桥与-wheel)。发布构建可显式指定芯片矩阵：
+A2/A3 的 `flashinfer_ascend910b` 包包含两种 SoC 各自的七项产物；A5 的 `flashinfer_ascend950` 包包含三项产物。默认构建采用本机芯片分组；`FLASHINFER_AOT_CONFIG`、`FLASHINFER_AOT_PREBUILT` 和 `FLASHINFER_AOT_ALL=0` 分别提供配置选择、预编译产物打包及源码模式，具体约束见 [构建模式](docs/ascendc_aot.md#原生桥与-wheel)。发布构建可显式指定芯片矩阵：
 
 ```bash
 python -B -m flashinfer.aot.wheels \

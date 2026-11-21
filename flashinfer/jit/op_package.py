@@ -136,8 +136,9 @@ def verify_op_package(directory, spec):
         # instead of treating the source C symbol as the packaged entry.
         generated = [k["kernelName"] for k in metadata.get("kernelList", ())]
         mixed = recipe.schema_version == 2 and recipe.task_type == "aic_aiv"
-        required_entries = ([name + suffix for name in generated for suffix in ("_mix_aic", "_mix_aiv")]
-                            if mixed else generated)
+        vector_sync = recipe.schema_version == 2 and recipe.task_type == "aiv_hard_sync"
+        suffixes = ("_mix_aic", "_mix_aiv") if mixed else ("_mix_aiv",) if vector_sync else ("",)
+        required_entries = [name + suffix for name in generated for suffix in suffixes]
         if (not generated or any(not name.startswith(recipe.package_op_type + "_") for name in generated)
                 or any(name not in entries for name in required_entries)):
             raise SchemaError("op-package NPU ET_EXEC does not define its CANN metadata entries")
@@ -149,6 +150,17 @@ def verify_op_package(directory, spec):
                            or k.get("crossCoreSync") != 1
                            for k in metadata["kernelList"])):
                 raise SchemaError("op-package kernel metadata does not declare the v2 synchronized AIC+AIV executable contract")
+        elif vector_sync:
+            # CANN encodes synchronized AIV execution as a MIX launch with zero AICs.
+            if (metadata.get("binFileSuffix") != ".o" or metadata.get("coreType") != "MIX"
+                    or metadata.get("magic") != "RT_DEV_BINARY_MAGIC_ELF" or metadata.get("intercoreSync") != 1
+                    or any(k.get("kernelType") not in {"MIX_AIC", "MIX_AIV"} or k.get("taskRation") != "0:1"
+                           or k.get("crossCoreSync") != 1 for k in metadata["kernelList"])):
+                raise SchemaError("op-package kernel metadata does not declare synchronized AIV execution")
+        elif recipe.schema_version == 2 and recipe.task_type == "aiv_only":
+            if (metadata.get("binFileSuffix") != ".o" or metadata.get("coreType") != "VectorCore"
+                    or metadata.get("core_type") != "AIV" or metadata.get("magic") != "RT_DEV_BINARY_MAGIC_ELF_AIVEC"):
+                raise SchemaError("op-package kernel metadata does not declare the AIV executable contract")
         else:
             # v1 retains its AIC-only metadata rules unchanged. 310P has unified
             # AiCore metadata without the A2/A3/A5 core_type field.

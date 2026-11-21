@@ -45,6 +45,11 @@ A8W8 与 A8W4 按完整组合声明，不是对任意存储 dtype 的笛卡尔�
 
 ## MoE
 
+arch22 提供两个按 expert 整理 token 的公共接口，输入和输出均为连续物理 ND。
+
+- `flashinfer.histgram(input, num_expert)` 接收非空 INT32 向量，ID 取值为 `[0, num_expert)`，返回长度为 `num_expert` 的 INT32 计数。没有 token 的 expert 返回 0。
+- `flashinfer.merge_chunk2(input1_chunk1, input1_chunk2, input2_chunk1, input2_chunk2, group_list_chunk1, group_list_chunk2)` 返回两路数据和逐 expert 相加的 INT32 计数。两张 group list 分别记录各 expert 在该 chunk 的行数，各表之和须等于对应 chunk 的总行数，允许某个 expert 的计数为 0。每个 expert 内先放 chunk 1，再放 chunk 2。两路 hidden 可不同，均须按 16 对齐且至多 90112。当前设备包支持两个非空 chunk、1 至 1024 个 expert，以及 FP16 或 BF16 数据。
+
 `fused_moe`、`fp8_per_tensor_scale_moe`、`fp8_block_scale_moe` 使用已有 CANN 原语组合与受限外部接入。它们不提供上游全部 backend、激活、量化方式和 moe_ep API。
 
 CANN MoE 与其他通用实现统一以 `Ascend910C` 声明 A3，硬件名 `Ascend910_93xx` 归一为该值。GMM 的 B/C 变体共享源码与 runner，910B wheel 收集各自产物；A3 真机数值未验证。Matmul/FP8 等现有 A5 限定域不因共包而扩大，按 [矩阵](../backends/overview.md) 判断。
